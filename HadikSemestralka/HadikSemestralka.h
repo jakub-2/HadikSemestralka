@@ -3,6 +3,6 @@
 
 #pragma once
 
-#include <iostream>
+#include <stdio.h>
 
 // TODO: Reference additional headers your program requires here.

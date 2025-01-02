@@ -3,7 +3,7 @@
 #
 
 # Add source to this project's executable.
-add_executable (HadikSemestralka "HadikSemestralka.cpp" "HadikSemestralka.h")
+add_executable (HadikSemestralka "HadikSemestralka.c" "HadikSemestralka.h")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET HadikSemestralka PROPERTY CXX_STANDARD 20)
