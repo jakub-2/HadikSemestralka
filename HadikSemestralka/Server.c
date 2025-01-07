@@ -205,7 +205,7 @@ void createGameS(int type, int gameMode, int width, int height)
 
 void test()
 {
-
+	//Obstacle** obstacles = malloc(sizeof(Obstacle) * obstaclesCount);
 	Snake** snakes = malloc(sizeof(Snake) * 2);
 	Fruit** fruits = malloc(sizeof(Fruit) * 2);
 	char* buffer;

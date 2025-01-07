@@ -18,6 +18,11 @@ typedef struct Fruit
     int x, y;
 } Fruit;
 
+typedef struct Obstacle
+{
+    int x, y;
+} Obstacle;
+
 typedef struct SnakeSegment {
     int x, y;
     struct SnakeSegment* next;
@@ -36,6 +41,12 @@ Fruit* create_fruit(int x, int y);
 
 void free_fruits(Fruit** fruits);
 
+Obstacle* create_obstacle(int x, int y);
+
+void load_map(const char* filename);
+
+void draw_map(Obstacle** obstacles, int obstaclesCount);
+
 SnakeSegment* create_segment(int x, int y);
 
 Snake* create_snake(char idChar, int x, int y, int direction);
@@ -45,8 +56,6 @@ void free_snakes(Snake** snakes);
 void add_segment(SnakeSegment* head);
 
 void draw_borders();
-
-void draw_obstacles(int* obstacleX, int* obstacleY, SnakeSegment* head, int sirka, int vyska, int numOfObstacles);
 
 void draw_score(Snake** snakes);
 
