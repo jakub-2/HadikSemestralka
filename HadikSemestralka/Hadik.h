@@ -46,6 +46,8 @@ void add_segment(SnakeSegment* head);
 
 void draw_borders();
 
+void draw_obstacles(int* obstacleX, int* obstacleY, SnakeSegment* head, int sirka, int vyska, int numOfObstacles);
+
 void draw_score(Snake** snakes);
 
 void draw_snake(Snake* snake);

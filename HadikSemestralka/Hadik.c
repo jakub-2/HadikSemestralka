@@ -68,6 +68,27 @@ void draw_borders() {
     }
 }
 
+void draw_obstacles(int* obstacleX, int* obstacleY, SnakeSegment* head, int sirka, int vyska, int numOfObstacles)
+{
+	for (int i = 0; i < numOfObstacles; ++i)
+	{
+        int isValid;
+        do {
+            isValid = 1;
+            *obstacleX = rand() % (WIDTH - 2) + 1;
+            *obstacleY = rand() % (HEIGHT - 2) + 1;
+            SnakeSegment* current = head;
+            while (current) {
+                if (current->x == *obstacleX && current->y == *obstacleY) {
+                    isValid = 0;
+                    break;
+                }
+                current = current->next;
+            }
+        } while (!isValid);
+	}
+}
+
 void draw_score(Snake** snakes)
 {
 	for (int i = 0; i < 2; ++i)
