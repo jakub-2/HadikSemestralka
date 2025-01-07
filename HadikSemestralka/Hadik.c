@@ -41,8 +41,8 @@ void free_snakes(Snake** snakes) {
         while (head) {
             SnakeSegment* temp = head;
             head = head->next;
-            free(temp);
-        }
+        free(temp);
+    }
         free(snakes[i]);
     }
 }
@@ -65,7 +65,7 @@ void draw_borders() {
         mvprintw(i, 0, "#");
         mvprintw(i, WIDTH - 1, "#");
         refresh();
-    }
+}
 }
 
 void draw_score(Snake** snakes)
@@ -110,7 +110,7 @@ void erase_snake(SnakeSegment* snake) {
         current = current->next;
     }
     refresh(); // Refresh the screen to apply changes
-}
+    }
 
 void erase_fruit(Fruit* fruit)
 {
