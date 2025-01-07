@@ -91,10 +91,10 @@ void draw_obstacles(int* obstacleX, int* obstacleY, SnakeSegment* head, int sirk
 
 void draw_score(Snake** snakes)
 {
-	for (int i = 0; i < 2; ++i)
-	{
+    for (int i = 0; i < 2; ++i)
+    {
         mvprintw(HEIGHT + 1 + i, 0, snakes[i]->score);
-	}
+    }
 }
 
 void draw_snake(Snake* snake) {
@@ -135,7 +135,7 @@ void erase_snake(SnakeSegment* snake) {
 
 void erase_fruit(Fruit* fruit)
 {
-	mvprintw(fruit->y, fruit->x, " ");
+    mvprintw(fruit->y, fruit->x, " ");
     refresh(); // Refresh the screen to apply changes
 }
 
@@ -283,11 +283,11 @@ int calculate_buffer_size(int width, int height, int num_fruits, int num_snakes)
 
 void update(Fruit** fruits, Snake** snakes, Fruit** old_fruits, Snake** old_snakes)
 {
-	for (int i = 0; i < 2; ++i)
-	{
+    for (int i = 0; i < 2; ++i)
+    {
         erase_snake(old_snakes[i]->head);
         erase_fruit(old_fruits[i]);
-	}
+    }
 
     draw_snakes(snakes);
     draw_fruit(fruits);
@@ -385,10 +385,10 @@ void moveSnake(Snake** snakes, Fruit** fruits, _Bool _print)
 
     for (int i = 0; i < 2; ++i)
     {
-	    if (tempDeath[i])
-	    {
+        if (tempDeath[i])
+        {
             snakes[i]->isDead = tempDeath[i];
-	    }
+        }
     }
 
     // Add new head
@@ -430,10 +430,10 @@ void moveSnake(Snake** snakes, Fruit** fruits, _Bool _print)
             if (_print)
             {
                 // TODO overit solve na miznutie znuku pri tesnom prejdeni pri chvoste
-	            if (!(new_x[i] == temp->next->x && new_y[i] == temp->next->y))
-	            {
+                if (!(new_x[i] == temp->next->x && new_y[i] == temp->next->y))
+                {
                     mvprintw(temp->next->y, temp->next->x, " ");
-	            }
+                }
             }
             free(temp->next);
             temp->next = NULL;
