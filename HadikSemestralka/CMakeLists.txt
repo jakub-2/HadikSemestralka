@@ -6,7 +6,7 @@ find_package(Curses REQUIRED)
 include_directories(${CURSES_INCLUDE_DIR})
 
 # Add source to this project's executable.
-add_executable (HadikSemestralka "HadikSemestralka.c"  "Server.h" "Client.h" "Hadik.h" "Menu.h" "Hra.h"  "Hra.c" "Hadik.c")
+add_executable (HadikSemestralka "HadikSemestralka.c"  "Server.h" "Client.h" "Hadik.h" "Menu.h" "Hadik.c" "Client.c")
 
 target_link_libraries(HadikSemestralka ${CURSES_LIBRARIES})
 
