@@ -16,6 +16,84 @@ void free_fruits(Fruit** fruits)
     }
 }
 
+Obstacle* create_obstacle(int x, int y)
+{
+    Obstacle* obstacle = malloc(sizeof(Obstacle));
+    obstacle->x = x;
+    obstacle->y = y;
+    return obstacle;
+}
+
+void create_map(const char* filename, Obstacle** obstacles, int* obstaclesCount) {
+    FILE* mapFile = fopen(filename, "r");
+    if (!mapFile) {
+        perror("Error opening file");
+        //return NULL;
+    }
+
+    char line[256];
+    *obstaclesCount = 0;
+    int obstacle_index = 0;
+    int y = 0;
+
+    while (fgets(line, sizeof(line), mapFile)) {
+        for (int x = 0; x < strlen(line); x++) {
+            if (line[x] == '#') {
+                (*obstaclesCount)++;
+                obstacles[obstacle_index++] = create_obstacle(x, y);
+            }
+        }
+        y++;
+    }
+
+    fclose(mapFile);
+}
+
+void draw_map(Obstacle** obstacles, int obstaclesCount)
+{
+    for (int i = 0; i < obstaclesCount; i++) {
+        mvprintw(obstacles[i]->y, obstacles[i]->x, "#");
+    }
+    refresh();
+}
+
+void serialize_obstacles(Obstacle** obstacles, char* buffer, int buffer_size, int obstaclesCount) {
+    //snprintf(buffer, buffer_size, "%d,%d;%d,%d;", obstacles[0]->x, obstacles[0]->y, obstacles[1]->x, obstacles[1]->y);
+
+    for (int i = 0; i < obstaclesCount; ++i)
+    {
+        snprintf(buffer, buffer_size, "%d,%d;", obstacles[i]->x, obstacles[i]->y);
+    }
+}
+
+void deserialize_obstacles(const char* data, Obstacle** obstacles) {
+    const char* obstacles_start = strstr(data, "Obstacles:") + strlen("Obstacles:");
+    const char* obstacles_end = strstr(data, "EndOfObstacles");
+
+    char obstacles_data[256];
+    strncpy(obstacles_data, obstacles_start, obstacles_end - obstacles_start);
+    obstacles_data[obstacles_end - obstacles_start] = '\0';
+
+    char* obstacle_token = strtok(obstacles_data, ";");
+    int obstacle_index = 0;
+    while (obstacle_token) {
+        int x, y;
+        sscanf(obstacle_token, "%d,%d", &x, &y);
+        obstacles[obstacle_index++] = create_obstacle(x, y);
+        obstacle_token = strtok(NULL, ";");
+    }
+}
+
+void free_obstacles(Obstacle** obstacles, int obstaclesCount)
+{
+    for (int i = 0; i < obstaclesCount; ++i)
+    {
+        free(obstacles[i]);
+    }
+
+    free(obstacles);
+}
+
 SnakeSegment* create_segment(int x, int y) {
     SnakeSegment* segment = (SnakeSegment*)malloc(sizeof(SnakeSegment));
     segment->x = x;
@@ -66,27 +144,6 @@ void draw_borders() {
         mvprintw(i, WIDTH - 1, "#");
         refresh();
     }
-}
-
-void draw_obstacles(int* obstacleX, int* obstacleY, SnakeSegment* head, int sirka, int vyska, int numOfObstacles)
-{
-	for (int i = 0; i < numOfObstacles; ++i)
-	{
-        int isValid;
-        do {
-            isValid = 1;
-            *obstacleX = rand() % (WIDTH - 2) + 1;
-            *obstacleY = rand() % (HEIGHT - 2) + 1;
-            SnakeSegment* current = head;
-            while (current) {
-                if (current->x == *obstacleX && current->y == *obstacleY) {
-                    isValid = 0;
-                    break;
-                }
-                current = current->next;
-            }
-        } while (!isValid);
-	}
 }
 
 void draw_score(Snake** snakes)
@@ -201,11 +258,14 @@ void serialize_snake(Snake* snake, char* buffer, int buffer_size) {
     }
 }
 
-void serialize_game(Snake** snakes, Fruit** fruits, char* buffer, int buffer_size) {
+void serialize_game(Snake** snakes, Fruit** fruits, Obstacle** obstacles, char* buffer, int buffer_size) {
     char fruit_buffer[50], snake1_buffer[500], snake2_buffer[500];
 
     // Serialize fruits
     serialize_fruits(fruits, fruit_buffer, sizeof(fruit_buffer));
+
+    // Serialize obstacless
+    //serialize_obstacles(obstacles, buffer, buffer_size, ?);
 
     // Serialize both snakes
     serialize_snake(snakes[0], snake1_buffer, sizeof(snake1_buffer));
@@ -474,6 +534,7 @@ void createGame(Snake** snakes, Fruit** fruits, _Bool _print)
         clear();
         // Draw borders, food, and snake
         draw_borders();
+        //draw_obstacles();
         draw_snakes(snakes);
 
     }
