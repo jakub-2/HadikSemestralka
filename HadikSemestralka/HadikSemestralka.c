@@ -1,5 +1,4 @@
-﻿#include "Hra.h"
-#include "Menu.h"
+﻿#include "Menu.h"
 #include "Server.h"
 
 #define DELAY_SIRKA 100000
