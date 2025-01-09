@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Hadik.h"
+#include "Menu.h"
 #include "Server.h"
 
 typedef struct server_data

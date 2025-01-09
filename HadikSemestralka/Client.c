@@ -22,7 +22,7 @@ void* send_data(void* data)
             if (ch == KEY_UP || ch == KEY_DOWN || ch == KEY_LEFT || ch == KEY_RIGHT) {
                 pthread_mutex_lock(buffer->lock);
 
-                buffer->direction = ch;
+                buffer->direction[0] = ch;
 
                 pthread_mutex_unlock(buffer->lock);
             }
@@ -41,28 +41,28 @@ void* receive_data(void* data)
     while (1) {
 
         pthread_mutex_lock(buff->lock);
-        while (buff->snakes == NULL)
+        while (buff->game_data == NULL)
         {
             // pocka kym sa nenaplni
             pthread_cond_wait(buff->is_New, buff->lock);
         }
 
-        if (buff->snakes == NULL && buff->fruits == NULL)
+        if (buff->game_data == NULL)
         {
             break;
         }
 
-        update(fruits, snakes, buff->fruits, buff->snakes);
+        update(fruits, snakes, buff->game_data->fruits, buff->game_data->snakes);
 
         for (int i = 0; i < 2; ++i) {
             //buff->fruits[i] = malloc(sizeof(Fruit));
-            memcpy(buff->fruits[i], fruits[i], sizeof(Fruit));
-            memcpy(buff->snakes[i], snakes[i], sizeof(Snake));
+            memcpy(buff->game_data->fruits[i], fruits[i], sizeof(Fruit));
+            memcpy(buff->game_data->snakes[i], snakes[i], sizeof(Snake));
         }
         free_fruits(fruits);
         free_snakes(snakes);
-        buff->snakes = NULL;
-        buff->fruits = NULL;
+        buff->game_data->snakes = NULL;
+        buff->game_data->fruits = NULL;
 
         pthread_mutex_unlock(buff->lock);
     }
@@ -76,7 +76,68 @@ void* run_server(void* data)
 {
     server_data* server_buffer = (server_data*)data;
 
-    createServer(server_buffer->send_buffer, server_buffer->receive_buffer);
+    char* options[] = { "Standardny", "Casovy" };
+
+    int gameMode = menu(options, 2);
+    int cas = 0;
+    if (gameMode == 1)
+    {
+        _Bool valid = 1;
+        initscr();
+        keypad(stdscr, TRUE);
+        noecho();
+        timeout(0);
+
+        clear();
+        int x = 0;
+        while (valid)
+        {
+            mvprintw(0, x, "Zadaj hraci cas: ");
+            scanf("%d", &cas);
+
+            if (cas <= 0)
+            {
+                mvprintw(0, 0, "Nespravny cas vyskusaj znova");
+                x = 1;
+                continue;
+            }
+            valid = 0;
+        }
+        endwin();
+    }
+
+    char* optionz[] = {"Svet bez prekazok", "Svet s prekazkamy"};
+    int type = menu(optionz, 2);
+    int vyska, sirka = 0;
+
+    if (server_buffer->send_buffer->game_data->type == 0)
+    {
+        _Bool valid = 1;
+        initscr();
+        keypad(stdscr, TRUE);
+        noecho();
+        timeout(0);
+
+        clear();
+        int xPrint = 0;
+        while (valid)
+        {
+            mvprintw(0, xPrint, "Zadaj sirku a vysku plochy (Max - 40, 40; Min - 15, 15): ");
+            scanf("%d, %d", &vyska, &sirka);
+
+            if (vyska < 15 || sirka < 15 || vyska > 40 || sirka > 40)
+            {
+                mvprintw(0, 0, "Nespravne zadane rozmery");
+                xPrint = 1;
+                continue;
+            }
+            valid = 0;
+        }
+        endwin();
+    }
+
+
+    createGameS(type, gameMode, sirka, vyska, cas, server_buffer->send_buffer, server_buffer->receive_buffer);
 
 }
 
@@ -89,8 +150,7 @@ void create_session()
     pthread_mutex_init(receive_buffer->lock, NULL);
 
     local_client_send_buffer* send_buffer = malloc(sizeof(local_client_send_buffer));
-    send_buffer->fruits = NULL;
-    send_buffer->snakes = NULL;
+    send_buffer->game_data = NULL;
     send_buffer->lock = malloc(sizeof(pthread_mutex_t));
     pthread_mutex_init(send_buffer->lock, NULL);
     send_buffer->is_New = malloc(sizeof(pthread_cond_t));
