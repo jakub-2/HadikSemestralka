@@ -2,16 +2,18 @@
 
 #include <pthread.h>
 #include "Hadik.h"
+#include <sys/shm.h>
 
+// buffer for sending gameData to local client
 typedef struct local_client_send_buffer
 {
-	Snake** snakes;
-	Fruit** fruits;
+	GameData* game_data;
 	pthread_mutex_t* lock;
 	pthread_cond_t* is_New;
 	pthread_cond_t* is_Read;
 } local_client_send_buffer;
 
+// buffer for receiving local client input
 typedef struct local_client_receive_buffer
 {
 	int* direction;
@@ -21,21 +23,23 @@ typedef struct local_client_receive_buffer
 	_Bool is_end;
 }local_client_receive_buffer;
 
+// check if client is still connected to server buffer
 typedef struct connected_client
 {
-	pthread_mutex_t lock;
+	pthread_mutex_t* lock;
 	_Bool is_connected;
 }connected_client;
 
-typedef struct send_buffer
+// buffer for runGame thread
+typedef struct run_game_buffer
 {
-	Snake** snakes;
-	Fruit** fruits;
+	GameData* game_data;
 	char* buffer;
 	int buffer_size;
 	local_client_send_buffer* send_buffer;
 	local_client_receive_buffer* receive_buffer;
-}send_buffer;
+	connected_client* connection_buffer;
+}run_game_buffer;
 
 void* remotePlayerInput(void* data);
 //void* localPlayerInput(void* data);
@@ -43,9 +47,10 @@ void* runGame(void* data);
 
 void* check_connection(void* data);
 
-void createServer(local_client_send_buffer* client_buffer, local_client_receive_buffer* client_receive_buffer);
+void createServer(run_game_buffer* buffer);
+//void createServer(local_client_send_buffer* send_buffer, local_client_receive_buffer* receive_buffer);
 
-void createGameS(int type, int gameMode, int width, int height);
+void createGameS(int type, int mode, int width, int height, int timer, local_client_send_buffer* client_buffer, local_client_receive_buffer* client_receive_buffer);
 
 //void sendGameStatus();
 //void makeMove();
