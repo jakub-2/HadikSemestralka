@@ -67,7 +67,14 @@ void* receive_data(void* data)
         perror("shmat");
         exit(1);
     }
+    Fruit** fruits = malloc(sizeof(Fruit) * 2);
+    Snake** snakes = malloc(sizeof(Snake) * 2);
 
+    for (int i = 0; i < 2; ++i) {
+        //buff->fruits[i] = malloc(sizeof(Fruit));
+        memcpy(buff->fruits[i], fruits[i], sizeof(Fruit));
+        memcpy(buff->snakes[i], snakes[i], sizeof(Snake));
+    }
 
     while (1) {
         if (strlen(data) > 0) {
@@ -80,8 +87,6 @@ void* receive_data(void* data)
                 pthread_mutex_unlock(&buff->inter_buffer->lock);
                 break;
             }
-            Fruit** fruits = malloc(sizeof(Fruit) * 2);
-            Snake** snakes = malloc(sizeof(Snake) * 2);
 
             deserialize_data(data, fruits, snakes);
             update(fruits, snakes, buff->fruits, buff->snakes);
@@ -91,22 +96,28 @@ void* receive_data(void* data)
                 memcpy(buff->fruits[i], fruits[i], sizeof(Fruit));
                 memcpy(buff->snakes[i], snakes[i], sizeof(Snake));
             }
+
             free_fruits(fruits);
             free_snakes(snakes);
+           
 
             // Respond to the client
             memset(data, 0, shm_size);
         }
     }
+    free(fruits);
+    free(snakes);
     shmdt(data);
     return NULL;
 }
 
 void* send_connection_up(void* data)
 {
-    int shm_size =
-        // locate shared memory segment
-        int shmid = shmget(1000, shm_size, 0666);
+    inter_buffer* buffer = (inter_buffer*)data;
+    int shm_size = 25;
+
+	// locate shared memory segment
+    int shmid = shmget(1000, shm_size, 0666);
     if (shmid == -1) {
         perror("shmget");
         exit(1);
@@ -119,35 +130,24 @@ void* send_connection_up(void* data)
         exit(1);
     }
 
+    struct timespec ts;
+    struct tm* timeinfo;
 
+
+    char message[20] = "Som hore";
     while (1) {
-        if (strlen(data) > 0) {
-            //printf("Client: %s\n", data);
-
-            if (strcmp(data, "End"))
-            {
-                pthread_mutex_lock(&buff->inter_buffer->lock);
-                buff->inter_buffer->is_end = 1;
-                pthread_mutex_unlock(&buff->inter_buffer->lock);
-                break;
-            }
-            Fruit** fruits = malloc(sizeof(Fruit) * 2);
-            Snake** snakes = malloc(sizeof(Snake) * 2);
-
-            deserialize_data(data, fruits, snakes);
-            update(fruits, snakes, buff->fruits, buff->snakes);
-
-            for (int i = 0; i < 2; ++i) {
-                //buff->fruits[i] = malloc(sizeof(Fruit));
-                memcpy(buff->fruits[i], fruits[i], sizeof(Fruit));
-                memcpy(buff->snakes[i], snakes[i], sizeof(Snake));
-            }
-            free_fruits(fruits);
-            free_snakes(snakes);
-
-            // Respond to the client
-            memset(data, 0, shm_size);
+        pthread_mutex_lock(&buffer->lock);
+        if (buffer->is_end)
+        {
+            pthread_mutex_unlock(&buffer->lock);
+            break;
         }
+        pthread_mutex_unlock(&buffer->lock);
+
+        // Write the timestamp into the shared memory
+        snprintf(data, shm_size, "%s", message);
+
+        usleep(2000);
     }
     shmdt(data);
 
@@ -162,4 +162,5 @@ _Bool try_connect_server()
 
 void start()
 {
+    //TODO nahadzat thready
 }

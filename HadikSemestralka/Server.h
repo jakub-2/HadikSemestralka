@@ -21,6 +21,12 @@ typedef struct local_client_receive_buffer
 	_Bool is_end;
 }local_client_receive_buffer;
 
+typedef struct connected_client
+{
+	pthread_mutex_t lock;
+	_Bool is_connected;
+}connected_client;
+
 typedef struct send_buffer
 {
 	Snake** snakes;
@@ -32,12 +38,12 @@ typedef struct send_buffer
 }send_buffer;
 
 void* remotePlayerInput(void* data);
-void* localPlayerInput(void* data);
+//void* localPlayerInput(void* data);
 void* runGame(void* data);
 
 void* check_connection(void* data);
 
-void createServer(local_client_send_buffer* client_buffer);
+void createServer(local_client_send_buffer* client_buffer, local_client_receive_buffer* client_receive_buffer);
 
 void createGameS(int type, int gameMode, int width, int height);
 

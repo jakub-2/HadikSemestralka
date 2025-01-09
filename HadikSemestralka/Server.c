@@ -18,55 +18,80 @@ Snake** snakes;
 Fruit** fruits;
 char* stringBuffer;
 
-void* localPlayerInput(void* data)
-{
-	local_client_receive_buffer* buffer = (local_client_receive_buffer*)data;
-	_Bool is_end = 0;
-	while (!is_end)
-	{
-		//ziskam remote input
-		int remoteDirection = 0;
-
-		//zapisem do bufferu pre run hry
-		//locknem pre zapis directionu
-		pthread_mutex_lock(buffer->lock);
-
-		//pokial nebol precitany smer tak cakam
-		while (buffer->direction[0] == -1)
-		{
-			pthread_cond_wait(buffer->read_local, buffer->lock);
-		}
-
-		if (buffer->direction[0] == -2)
-		{
-			break;
-		}
-
-		//smer bol precitany tak zapisem ziskany input
-		buffer->direction[0] = remoteDirection;
-
-		//triggernem cond ze som odovzdal input
-		pthread_mutex_unlock(buffer->lock);
-
-		//TODO overit ci treba
-		//asi bez signalizacie aby hra nestala
-		//preistotu signal pre dalsi thread ale asi netreba
-		pthread_cond_signal(buffer->read_remote);
-		//repeat?
-	}
-
-	return NULL;
-}
+//void* localPlayerInput(void* data)
+//{
+//	local_client_receive_buffer* buffer = (local_client_receive_buffer*)data;
+//	_Bool is_end = 0;
+//	while (!is_end)
+//	{
+//		//ziskam remote input
+//		int remoteDirection = 0;
+//
+//		//zapisem do bufferu pre run hry
+//		//locknem pre zapis directionu
+//		pthread_mutex_lock(buffer->lock);
+//
+//		//pokial nebol precitany smer tak cakam
+//		while (buffer->direction[0] == -1)
+//		{
+//			pthread_cond_wait(buffer->read_local, buffer->lock);
+//		}
+//
+//		if (buffer->direction[0] == -2)
+//		{
+//			break;
+//		}
+//
+//		//smer bol precitany tak zapisem ziskany input
+//		buffer->direction[0] = remoteDirection;
+//		
+//		//triggernem cond ze som odovzdal input
+//		pthread_mutex_unlock(buffer->lock);
+//
+//		//TODO overit ci treba
+//		//asi bez signalizacie aby hra nestala
+//		//preistotu signal pre dalsi thread ale asi netreba
+//		pthread_cond_signal(buffer->read_remote);
+//		//repeat?
+//	}
+//
+//	return NULL;
+//}
 
 void* remotePlayerInput(void* data)
 {
 	local_client_receive_buffer* buffer = (local_client_receive_buffer*)data;
+
+	int shm_size = 5;
+	// locate shared memory segment
+	int shmid = shmget(69, shm_size, 0666);
+	if (shmid == -1) {
+		perror("shmget");
+		exit(1);
+	}
+
+	// attach shared memory segment to client's address space
+	char* data = (char*)shmat(shmid, NULL, 0);
+	if (data == (char*)(-1)) {
+		perror("shmat");
+		exit(1);
+	}
+
 	_Bool is_end = 0;
 	while (!is_end)
 	{
 		//TODO precitaj shared memory
 		//ziskam remote input
 		int remoteDirection = 0;
+
+		if (strlen(data) > 0) {
+
+			remoteDirection = atoi(data);
+
+			// Respond to the client
+			memset(data, 0, shm_size);
+		}
+
 
 		//zapisem do bufferu pre run hry
 		//locknem pre zapis directionu
@@ -96,6 +121,7 @@ void* remotePlayerInput(void* data)
 	return NULL;
 }
 
+//run game and send data
 void* runGame(void* data)
 {
 	send_buffer* buffer = (send_buffer*)data;
@@ -114,19 +140,7 @@ void* runGame(void* data)
 		exit(1);
 	}
 
-	//while (1) {
-	//    printf("Enter message for server: ");
-	//    fgets(data, SHM_SIZE, stdin);
-	//    data[strcspn(data, "\\n")] = 0; // remove newline character
-	//    printf("Message sent: %s\n", data);
-
-	//    sleep(1);
-	//}
-
-	// detach shared memory
-	shmdt(data);
-
-	while (1 == 1)
+	while (1)
 	{
 		//locke buffer s direction
 		pthread_mutex_lock(buffer->receive_buffer->lock);
@@ -161,7 +175,7 @@ void* runGame(void* data)
 
 		//send shared data
 		serialize_game(snakes, fruits, buffer->buffer, buffer->buffer_size);
-		//TODO daj shared memory send
+
 		strncpy(data, buffer->buffer, buffer->buffer_size - 1);
 		//printf("Message sent: %s\n", data);
 
@@ -180,13 +194,62 @@ void* runGame(void* data)
 	//send shared data and detach shared memory
 	strncpy(data, "End\0", buffer->buffer_size - 1);
 	shmdt(data);
-	//TODO send endGame
 }
 
-void createServer(local_client_send_buffer* client_buffer)
+void* check_connection(void* data)
 {
-	lBufferReceive = client_buffer;
+	connected_client* buffer = (connected_client*)data;
 
+	// locate shared memory segment
+	int shmid = shmget(1000, 25, 0666);
+	if (shmid == -1) {
+		perror("shmget");
+		exit(1);
+	}
+
+	// attach shared memory segment to client's address space
+	char* data = (char*)shmat(shmid, NULL, 0);
+	if (data == (char*)(-1)) {
+		perror("shmat");
+		exit(1);
+	}
+
+	int counter = 0;
+	while (1)
+	{
+		if (strlen(data) > 0) {
+			if (strcmp(data, "End") == 0)
+			{
+				memset(data, 0, SHM_SIZE);
+				break;
+			}
+
+			//printf("Read timestamp: %s\n", data);
+
+			// Respond to the client
+			memset(data, 0, SHM_SIZE);
+			counter = 0;
+		}
+		else
+		{
+			if (counter > 10)
+			{
+				//TODO pausni hru
+				break;
+			}
+			counter++;
+		}
+		usleep(10000);
+	}
+
+	shmdt(data);
+
+	return NULL;
+}
+
+void createServer(local_client_send_buffer* client_buffer, local_client_receive_buffer* client_receive_buffer)
+{
+	//TODO spravit thready
 
 }
 
@@ -205,7 +268,6 @@ void createGameS(int type, int gameMode, int width, int height)
 
 void test()
 {
-	//Obstacle** obstacles = malloc(sizeof(Obstacle) * obstaclesCount);
 	Snake** snakes = malloc(sizeof(Snake) * 2);
 	Fruit** fruits = malloc(sizeof(Fruit) * 2);
 	char* buffer;

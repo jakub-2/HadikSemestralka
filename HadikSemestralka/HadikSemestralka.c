@@ -12,15 +12,5 @@ int main() {
 
     int vybranySvet = menu(poleSvetov, velkost);
 
-    if (vybranySvet == 0)
-    {
-        hra(0);
-    } else if (vybranySvet == 1)
-    {
-        hra(1);
-    }*/
-
-    test();
-
     return 0;
 }
