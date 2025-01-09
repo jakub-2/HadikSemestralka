@@ -28,15 +28,19 @@ void load_map(const char* filename, GameData* gameData) {
     FILE* mapFile = fopen(filename, "r");
     if (!mapFile) {
         perror("Error opening file.");
-        //return NULL;
+        exit(102);
     }
 
     fscanf(mapFile, "%d;%d", &(gameData->width), &(gameData->height));
     fscanf(mapFile, "%d", &(gameData->count_obstacles));
 
+    gameData->obstacles = malloc(sizeof(Obstacle) * gameData->count_obstacles);
+
+    int x, y;
     for (int i = 0; i < gameData->count_obstacles; ++i)
     {
-        fscanf(mapFile, "%d;%d", &(gameData->obstacles[i]->x), &(gameData->obstacles[i]->y));
+        fscanf(mapFile, "%d;%d", &x, &y);
+        gameData->obstacles[i] = create_obstacle(x, y);
     }
 
     fclose(mapFile);
@@ -156,11 +160,11 @@ void draw_borders() {
     }
 }
 
-void draw_score(Snake** snakes)
+void draw_score(GameData* game_data)
 {
     for (int i = 0; i < 2; ++i)
     {
-        mvprintw(HEIGHT + 1 + i, 0, snakes[i]->score);
+        mvprintw(game_data->height + 1 + i, 0, "Score Snake %c: %d", game_data->snakes[i]->idChar, game_data->snakes[i]->score);
     }
 }
 
@@ -207,30 +211,46 @@ void erase_fruit(Fruit* fruit)
 }
 
 //TODO check for number of free spaces
-void generate_food(Fruit** fruits, int index, Snake** snakes) {
-    int valid;
-    do {
-        valid = 1;
-        fruits[index]->x = rand() % (WIDTH - 2) + 1;
-        fruits[index]->y = rand() % (HEIGHT - 2) + 1;
+void generate_food(GameData* game_data, int index) {
+	if (game_data->count_free_spaces >= 2)
+	{
+        int valid;
+        do {
+            valid = 1;
+            game_data->fruits[index]->x = rand() % (game_data->width - 2) + 1;
+            game_data->fruits[index]->y = rand() % (game_data->height - 2) + 1;
 
-        if (fruits[index]->x == fruits[(index + 1) % 2]->x && fruits[index]->y == fruits[(index + 1) % 2]->y)
-        {
-            valid = 0;
-            continue;
-        }
-        for (int i = 0; i < 2; ++i)
-        {
-            SnakeSegment* current = snakes[i]->head;
-            while (current) {
-                if (current->x == fruits[index]->x && current->y == fruits[index]->y) {
+            if (game_data->fruits[index]->x == game_data->fruits[(index + 1) % 2]->x && game_data->fruits[index]->y == game_data->fruits[(index + 1) % 2]->y)
+            {
+                valid = 0;
+                continue;
+            }
+            for (int i = 0; i < 2; ++i)
+            {
+                SnakeSegment* current = game_data->snakes[i]->head;
+                while (current) {
+                    if (current->x == game_data->fruits[index]->x && current->y == game_data->fruits[index]->y) {
+                        valid = 0;
+                        break;
+                    }
+                    current = current->next;
+                }
+            }
+            for (int i = 0; i < game_data->count_obstacles; ++i)
+            {
+	            if (game_data->fruits[index]->x == game_data->obstacles[i]->x && game_data->fruits[index]->y == game_data->obstacles[i]->y)
+	            {
                     valid = 0;
                     break;
-                }
-                current = current->next;
+	            }
             }
-        }
-    } while (!valid);
+        } while (!valid);
+	}
+	else
+	{
+        game_data->fruits[index]->x = -1;
+        game_data->fruits[index]->y = -1;
+	}
 }
 
 _Bool collidesWithFruit(Fruit** fruits, int x, int y, int* fruitIndex)
@@ -268,6 +288,49 @@ void serialize_snake(Snake* snake, char* buffer, int buffer_size) {
     }
 }
 
+// new game_data serialization
+void serialize_game_data(GameData* game_data, char* buffer, int buffer_size) {
+    char temp[256];
+
+    // Serialize GameData properties
+    snprintf(buffer, buffer_size, "GameData:%d,%d,%d,%d,%d,%d,%d;\n",
+        game_data->width, game_data->height, game_data->type, game_data->mode,
+        game_data->timer, game_data->count_obstacles, game_data->count_free_spaces);
+
+    // Serialize Fruits
+    strcat(buffer, "Fruits:");
+    for (int i = 0; i < 2; ++i) {
+        snprintf(temp, 256, "%d,%d;", game_data->fruits[i]->x, game_data->fruits[i]->y);
+        strcat(buffer, temp);
+    }
+    strcat(buffer, "\n");
+
+    // Serialize Snakes
+    strcat(buffer, "Snakes:");
+    for (int i = 0; i < 2; ++i) {
+        snprintf(temp, 256, "%c:", game_data->snakes[i]->idChar);
+        strcat(buffer, temp);
+
+        SnakeSegment* segment = game_data->snakes[i]->head;
+        while (segment) {
+            snprintf(temp, 256, "%d,%d->", segment->x, segment->y);
+            strcat(buffer, temp);
+            segment = segment->next;
+        }
+        strcat(buffer, ";");
+    }
+    strcat(buffer, "\n");
+
+    // Serialize Obstacles
+    strcat(buffer, "Obstacles:");
+    for (int i = 0; i < game_data->count_obstacles; ++i) {
+        snprintf(temp, 256, "%d,%d;", game_data->obstacles[i]->x, game_data->obstacles[i]->y);
+        strcat(buffer, temp);
+    }
+    strcat(buffer, "\n");
+}
+
+//old game serialization
 void serialize_game(Snake** snakes, Fruit** fruits, Obstacle** obstacles, char* buffer, int buffer_size) {
     char fruit_buffer[50], snake1_buffer[500], snake2_buffer[500];
 
@@ -285,6 +348,93 @@ void serialize_game(Snake** snakes, Fruit** fruits, Obstacle** obstacles, char* 
     snprintf(buffer, buffer_size, "Fruits:%sSnake1:%sSnake2:%s\0", fruit_buffer, snake1_buffer, snake2_buffer);
 }
 
+//new deserialization
+void deserialize_game_data(const char* data, GameData* game) {
+    // Parse GameData properties
+    const char* game_data_start = strstr(data, "GameData:") + strlen("GameData:");
+    const char* game_data_end = strstr(game_data_start, ";");
+    char game_data[256];
+    strncpy(game_data, game_data_start, game_data_end - game_data_start);
+    game_data[game_data_end - game_data_start] = '\0';
+
+    sscanf(game_data, "%d,%d,%d,%d,%d,%d,%d",
+        &game->width, &game->height, &game->type, &game->mode,
+        &game->timer, &game->count_obstacles, &game->count_free_spaces);
+
+    // Parse Fruits
+    const char* fruits_start = strstr(data, "Fruits:") + strlen("Fruits:");
+    const char* fruits_end = strstr(fruits_start, "\n");
+    char fruits_data[256];
+    strncpy(fruits_data, fruits_start, fruits_end - fruits_start);
+    fruits_data[fruits_end - fruits_start] = '\0';
+
+    char* fruit_token = strtok(fruits_data, ";");
+    int fruit_index = 0;
+    while (fruit_token) {
+        int x, y;
+        sscanf(fruit_token, "%d,%d", &x, &y);
+        game->fruits[fruit_index++] = create_fruit(x, y);
+        fruit_token = strtok(NULL, ";");
+    }
+
+    // Parse Snakes
+    const char* snakes_start = strstr(data, "Snakes:") + strlen("Snakes:");
+    const char* snakes_end = strstr(snakes_start, "\n");
+    char snakes_data[1024];
+    strncpy(snakes_data, snakes_start, snakes_end - snakes_start);
+    snakes_data[snakes_end - snakes_start] = '\0';
+
+    char* snake_token = strtok(snakes_data, ";");
+    int snake_index = 0;
+    while (snake_token) {
+        char idChar;
+        sscanf(snake_token, "%c:", &idChar);
+
+        Snake* snake = create_snake(idChar, 0, 0, 0); // Placeholder
+        SnakeSegment* head = NULL;
+        SnakeSegment* tail = NULL;
+        int x, y;
+        char* segment_token = strstr(snake_token, ":") + 1;
+        while (segment_token && sscanf(segment_token, "%d,%d", &x, &y) == 2) {
+            SnakeSegment* segment = create_segment(x, y);
+
+            if (!head) {
+                head = segment;
+                tail = segment;
+            }
+            else {
+                tail->next = segment;
+                tail = segment;
+            }
+
+            segment_token = strstr(segment_token, "->");
+            if (segment_token) segment_token += 2;
+        }
+
+        snake->head = head;
+        game->snakes[snake_index++] = snake;
+
+        snake_token = strtok(NULL, ";");
+    }
+
+    // Parse Obstacles
+    const char* obstacles_start = strstr(data, "Obstacles:") + strlen("Obstacles:");
+    const char* obstacles_end = strstr(obstacles_start, "\n");
+    char obstacles_data[256];
+    strncpy(obstacles_data, obstacles_start, obstacles_end - obstacles_start);
+    obstacles_data[obstacles_end - obstacles_start] = '\0';
+
+    char* obstacle_token = strtok(obstacles_data, ";");
+    int obstacle_index = 0;
+    while (obstacle_token) {
+        int x, y;
+        sscanf(obstacle_token, "%d,%d", &x, &y);
+        game->obstacles[obstacle_index++] = create_obstacle(x, y);
+        obstacle_token = strtok(NULL, ";");
+    }
+}
+
+//old
 void deserialize_data(const char* data, Fruit** fruits, Snake** snakes) {
     // Deserialize Fruits
     const char* fruits_start = strstr(data, "Fruits:") + strlen("Fruits:");
@@ -342,6 +492,32 @@ void deserialize_data(const char* data, Fruit** fruits, Snake** snakes) {
     }
 }
 
+//new buffer_size
+int calculate_max_buffer_size(GameData* game) {
+    // Maximum possible segments for all snakes
+    int max_segments_per_snake = (game->width * game->height) / 2;
+    int max_snake_segments = 2 * max_segments_per_snake; // Assuming 2 snakes
+
+    // Maximum size for snakes
+    int snake_size = max_snake_segments * 6; // Each segment: "x,y->"
+    snake_size += 2 * 3; // Snake ID for each snake: "1:" or "2:"
+
+    // Maximum size for fruits
+    int max_fruits = game->width * game->height; // Assuming fruits could fill the entire grid
+    int fruit_size = max_fruits * 6; // Each fruit: "x,y;"
+
+    // Maximum size for obstacles
+    int max_obstacles = game->width * game->height; // Obstacles could theoretically fill the grid
+    int obstacle_size = max_obstacles * 6; // Each obstacle: "x,y;"
+
+    // Metadata
+    int metadata_size = 200; // For labels, numbers, separators, and additional metadata
+
+    // Total size
+    return fruit_size + snake_size + obstacle_size + metadata_size;
+}
+
+//old
 int calculate_buffer_size(int width, int height, int num_fruits, int num_snakes) {
     int max_segments_per_snake = (width * height) / num_snakes; // Max segments per snake
     int fruit_size = num_fruits * 6; // Each fruit: "x,y;" -> 6 chars
@@ -364,24 +540,24 @@ void update(Fruit** fruits, Snake** snakes, Fruit** old_fruits, Snake** old_snak
     draw_score(snakes);
 }
 
-void moveSnake(Snake** snakes, Fruit** fruits, _Bool _print)
+void moveSnake(GameData* game_data, _Bool _print)
 {
     // Move snakes
-    int new_x[] = { snakes[0]->head->x, snakes[1]->head->x };
-    int new_y[] = { snakes[0]->head->y, snakes[1]->head->y };
+    int new_x[] = { game_data->snakes[0]->head->x, game_data->snakes[1]->head->x };
+    int new_y[] = { game_data->snakes[0]->head->y, game_data->snakes[1]->head->y };
 
     for (int i = 0; i < 2; ++i)
     {
-        if (snakes[i]->direction == KEY_UP) {
+        if (game_data->snakes[i]->direction == KEY_UP) {
             new_y[i]--;
         }
-        else if (snakes[i]->direction == KEY_DOWN) {
+        else if (game_data->snakes[i]->direction == KEY_DOWN) {
             new_y[i]++;
         }
-        else if (snakes[i]->direction == KEY_LEFT) {
+        else if (game_data->snakes[i]->direction == KEY_LEFT) {
             new_x[i]--;
         }
-        else if (snakes[i]->direction == KEY_RIGHT) {
+        else if (game_data->snakes[i]->direction == KEY_RIGHT) {
             new_x[i]++;
         }
     }
@@ -390,61 +566,77 @@ void moveSnake(Snake** snakes, Fruit** fruits, _Bool _print)
     // Check if colliding with border
     for (int i = 0; i < 2; ++i)
     {
-        if (snakes[i]->isDead == 1)
+        if (game_data->snakes[i]->isDead == 1)
         {
             continue;
         }
-        if (new_x[i] <= 0 || new_x[i] >= WIDTH - 1 || new_y[i] <= 0 || new_y[i] >= HEIGHT - 1) {
-            if (_print)
-            {
-                erase_snake(snakes[i]->head);
-            }
-            snakes[i]->isDead = 1;
+        //if (new_x[i] <= 0 || new_x[i] >= WIDTH - 1 || new_y[i] <= 0 || new_y[i] >= HEIGHT - 1) {
+        //    if (_print)
+        //    {
+        //        erase_snake(game_data->snakes[i]->head);
+        //    }
+        //    game_data->snakes[i]->isDead = 1;
+        //}
+        if (new_x[i] <= 0)
+        {
+            new_x[i] = game_data->width - 2;
+        }
+        else if (new_x[i] >= game_data->width - 1)
+        {
+            new_x[i] = 1;
+        }
+        else if (new_y[i] <= 0)
+        {
+            new_y[i] = game_data->height - 2;
+        }
+        else if (new_y[i] >= game_data->height - 1)
+        {
+            new_y[i] = 1;
         }
     }
 
     // check if snakes move to same space
-    if (snakes[0]->isDead == snakes[1]->isDead)
+    if (game_data->snakes[0]->isDead == game_data->snakes[1]->isDead)
     {
         if (new_x[0] == new_x[1] && new_y[0] == new_y[1])
         {
-            snakes[0]->isDead = 1;
-            snakes[1]->isDead = 1;
+            game_data->snakes[0]->isDead = 1;
+            game_data->snakes[1]->isDead = 1;
         }
     }
 
     _Bool tempDeath[] = { 0, 0 };
     for (int i = 0; i < 2; ++i)
     {
-        if (snakes[i]->isDead == 1)
+        if (game_data->snakes[i]->isDead == 1)
         {
             continue;
         }
         // check if snake collides with itself
-        SnakeSegment* current = snakes[i]->head;
+        SnakeSegment* current = game_data->snakes[i]->head;
         while (current->next) {
             if (current->x == new_x[i] && current->y == new_y[i]) {
                 if (_print)
                 {
-                    erase_snake(snakes[i]->head);
+                    erase_snake(game_data->snakes[i]->head);
                 }
-                snakes[i]->isDead = 1;
+                game_data->snakes[i]->isDead = 1;
             }
             current = current->next;
         }
 
         // check if any part of snake2 collides with new cords
         int index2 = (i + 1) % 2;
-        if (snakes[index2]->isDead == 1)
+        if (game_data->snakes[index2]->isDead == 1)
         {
             continue;
         }
-        current = snakes[index2]->head;
+        current = game_data->snakes[index2]->head;
         while (current->next) {
             if (current->x == new_x[i] && current->y == new_y[i]) {
                 if (_print)
                 {
-                    erase_snake(snakes[i]->head);
+                    erase_snake(game_data->snakes[i]->head);
                 }
                 tempDeath[i] = 1;
                 //snakes[i]->isDead = 1;
@@ -453,27 +645,47 @@ void moveSnake(Snake** snakes, Fruit** fruits, _Bool _print)
         }
     }
 
+    //check if snake collides with obstacles
+    for (int i = 0; i < 2; ++i)
+    {
+	    if (game_data->snakes[i]->isDead)
+	    {
+            continue;
+	    }
+	    for (int j = 0; j < game_data->count_obstacles; ++j)
+	    {
+		    if (new_x[i] == game_data->obstacles[j]->x && new_y[i] == game_data->obstacles[j]->y)
+		    {
+                if (_print)
+                {
+                    erase_snake(game_data->snakes[i]->head);
+                }
+                game_data->snakes[i]->isDead = 1;
+		    }
+	    }
+    }
+
     for (int i = 0; i < 2; ++i)
     {
         if (tempDeath[i])
         {
-            snakes[i]->isDead = tempDeath[i];
+            game_data->snakes[i]->isDead = tempDeath[i];
         }
     }
 
     // Add new head
     for (int i = 0; i < 2; ++i)
     {
-        if (snakes[i]->isDead == 1)
+        if (game_data->snakes[i]->isDead == 1)
         {
             continue;
         }
         SnakeSegment* new_head = create_segment(new_x[i], new_y[i]);
-        new_head->next = snakes[i]->head;
-        snakes[i]->head = new_head;
+        new_head->next = game_data->snakes[i]->head;
+        game_data->snakes[i]->head = new_head;
         if (_print)
         {
-            mvprintw(new_y[i], new_x[i], &(snakes[i]->idChar));
+            mvprintw(new_y[i], new_x[i], &(game_data->snakes[i]->idChar));
         }
     }
 
@@ -481,18 +693,19 @@ void moveSnake(Snake** snakes, Fruit** fruits, _Bool _print)
     for (int i = 0; i < 2; ++i)
     {
         //check if snake is dead
-        if (snakes[i]->isDead == 1)
+        if (game_data->snakes[i]->isDead == 1)
         {
             continue;
         }
         int fruitIndex = -1;
-        if (collidesWithFruit(fruits, new_x[i], new_y[i], &fruitIndex)) {
-            snakes[i]->score++;
-            generate_food(fruits, fruitIndex, snakes);
+        if (collidesWithFruit(game_data->fruits, new_x[i], new_y[i], &fruitIndex)) {
+            game_data->snakes[i]->score++;
+            generate_food(game_data, fruitIndex);
+            draw_fruit(game_data->fruits);
         }
         else {
             // Remove tail
-            SnakeSegment* temp = snakes[i]->head;
+            SnakeSegment* temp = game_data->snakes[i]->head;
             while (temp->next->next) {
                 temp = temp->next;
             }
@@ -511,24 +724,39 @@ void moveSnake(Snake** snakes, Fruit** fruits, _Bool _print)
     }
 }
 
-void createGame(Snake** snakes, Fruit** fruits, _Bool _print)
+void createGame(GameData* game_data, _Bool _print)
 {
-    //print = _print;
-    snakes[0] = create_snake('1', WIDTH / 2, HEIGHT / 2, KEY_RIGHT);
-    snakes[1] = create_snake('2', WIDTH / 2, HEIGHT / 2 + 1, KEY_LEFT);
+    game_data->snakes = malloc(sizeof(Snake) * 2);
+    game_data->fruits = malloc(sizeof(Fruit) * 2);
 
-    fruits[0] = create_fruit(0, 0);
-    fruits[1] = create_fruit(0, 1);
+    if (game_data->type == 1)
+    {
+        //load_map("/home/jakub/.vs/HadikSemestralka/HadikSemestralka/map.txt", game_data);
+        //load_map("/home/jakub/.vs/HadikSemestralka/HadikSemestralka/map1.txt", game_data);
+        load_map("/home/jakub/.vs/HadikSemestralka/HadikSemestralka/map2.txt", game_data);
+    }
+    else
+    {
+        game_data->obstacles = NULL;
+        game_data->count_obstacles = 0;
+    }
+
+    //print = _print;
+    game_data->snakes[0] = create_snake('1', game_data->width / 2, game_data->height / 2, KEY_RIGHT);
+    game_data->snakes[1] = create_snake('2', game_data->width / 2, game_data->height / 2 + 1, KEY_LEFT);
+
+    game_data->fruits[0] = create_fruit(0, 0);
+    game_data->fruits[1] = create_fruit(0, 1);
 
     for (int i = 0; i < 2; ++i)
     {
-        add_segment(snakes[i]->head);
-        add_segment(snakes[i]->head);
+        add_segment(game_data->snakes[i]->head);
+        add_segment(game_data->snakes[i]->head);
     }
 
     for (int i = 0; i < 2; ++i)
     {
-        generate_food(fruits, i, snakes);
+        generate_food(game_data, i);
     }
 
     if (_print)
@@ -543,9 +771,9 @@ void createGame(Snake** snakes, Fruit** fruits, _Bool _print)
 
         clear();
         // Draw borders, food, and snake
-        draw_borders();
+        draw_map(game_data);
         //draw_obstacles();
-        draw_snakes(snakes);
+        draw_snakes(game_data->snakes);
 
     }
 }
@@ -560,32 +788,34 @@ void endGame(Snake** snakes, _Bool _print)
             printf("Game Over! Final Score Snake %d: %d\n", i + 1, snakes[i]->score);
         }
     }
+    //TODO pridat free na vsetko
     free_snakes(snakes);
 }
 
-_Bool play(int* moves, Snake** snakes, Fruit** fruits, _Bool _print)
+_Bool play(int* moves, GameData* game_data, _Bool _print)
 {
     if (_print)
     {
-        draw_fruit(fruits);
+        draw_fruit(game_data->fruits);
     }
 
     for (int i = 0; i < 2; ++i)
     {
-        if ((moves[i] == KEY_UP && snakes[i]->direction != KEY_DOWN) ||
-            (moves[i] == KEY_DOWN && snakes[i]->direction != KEY_UP) ||
-            (moves[i] == KEY_LEFT && snakes[i]->direction != KEY_RIGHT) ||
-            (moves[i] == KEY_RIGHT && snakes[i]->direction != KEY_LEFT)) {
-            snakes[i]->direction = moves[i];
+        if ((moves[i] == KEY_UP && game_data->snakes[i]->direction != KEY_DOWN) ||
+            (moves[i] == KEY_DOWN && game_data->snakes[i]->direction != KEY_UP) ||
+            (moves[i] == KEY_LEFT && game_data->snakes[i]->direction != KEY_RIGHT) ||
+            (moves[i] == KEY_RIGHT && game_data->snakes[i]->direction != KEY_LEFT)) {
+            game_data->snakes[i]->direction = moves[i];
         }
     }
 
     // moveSnake returns if snake is dead after move or not
-    moveSnake(snakes, fruits, _print);
+    moveSnake(game_data, _print);
 
-    if (snakes[0]->isDead == 1 && snakes[1]->isDead == 1)
+    if (game_data->snakes[0]->isDead == 1 && game_data->snakes[1]->isDead == 1)
     {
         return 1;
     }
+    draw_score(game_data);
     return 0;
 }
