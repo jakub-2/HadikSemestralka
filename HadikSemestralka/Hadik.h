@@ -37,6 +37,17 @@ typedef struct Snake
     char idChar;
 } Snake;
 
+typedef struct GameData
+{
+    Snake** snakes;
+    Fruit** fruits;
+    Obstacle** obstacles;
+    int width, height;
+    int timer;
+    int count_obstacles;
+    int count_used_spaces;
+} GameData;
+
 Fruit* create_fruit(int x, int y);
 
 void free_fruits(Fruit** fruits);
