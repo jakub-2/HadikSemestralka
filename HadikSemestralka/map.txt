@@ -1,13 +1,10 @@
-
-                    
-                   
-     ##             
-                    
-                    
-                    
-            ##      
-                    
-                    
-             #      
-     ##             
-                    
+20;15	//rozmer(vyska, sirka)
+8		//pocet obstaclov
+2;9		//suradnice x,y
+6;5
+6;10
+8;13
+10;2
+12;7
+17;3
+17;12
