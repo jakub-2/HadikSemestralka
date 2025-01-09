@@ -54,9 +54,11 @@ void free_fruits(Fruit** fruits);
 
 Obstacle* create_obstacle(int x, int y);
 
-void load_map(const char* filename);
+void load_map(const char* filename, GameData* gameData);
 
-void draw_map(Obstacle** obstacles, int obstaclesCount);
+void draw_map(GameData* gameData);
+
+void free_obstacles(GameData* gameData);
 
 SnakeSegment* create_segment(int x, int y);
 

@@ -24,39 +24,57 @@ Obstacle* create_obstacle(int x, int y)
     return obstacle;
 }
 
-void create_map(const char* filename, Obstacle** obstacles, int* obstaclesCount) {
+void load_map(const char* filename, GameData* gameData) {
     FILE* mapFile = fopen(filename, "r");
     if (!mapFile) {
-        perror("Error opening file");
+        perror("Error opening file.");
         //return NULL;
     }
 
-    char line[256];
-    *obstaclesCount = 0;
-    int obstacle_index = 0;
-    int y = 0;
+    fscanf(mapFile, "%d;%d", &(gameData->width), &(gameData->height));
+    fscanf(mapFile, "%d", &(gameData->count_obstacles));
 
-    while (fgets(line, sizeof(line), mapFile)) {
-        for (int x = 0; x < strlen(line); x++) {
-            if (line[x] == '#') {
-                (*obstaclesCount)++;
-                obstacles[obstacle_index++] = create_obstacle(x, y);
-            }
-        }
-        y++;
+    for (int i = 0; i < gameData->count_obstacles; ++i)
+    {
+        fscanf(mapFile, "%d;%d", &(gameData->obstacles[i]->x), &(gameData->obstacles[i]->y));
     }
 
     fclose(mapFile);
 }
 
-void draw_map(Obstacle** obstacles, int obstaclesCount)
+void draw_map(GameData* gameData)
 {
-    for (int i = 0; i < obstaclesCount; i++) {
-        mvprintw(obstacles[i]->y, obstacles[i]->x, "#");
+    // Draw borders
+    for (int i = 0; i < gameData->width; ++i) {
+        mvprintw(0, i, "#");
+        mvprintw(gameData->height - 1, i, "#");
+        //refresh();
     }
-    refresh();
+    for (int i = 0; i < gameData->height; ++i) {
+        mvprintw(i, 0, "#");
+        mvprintw(i, gameData->width - 1, "#");
+        //refresh();
+    }
+
+    // Draw obstacles
+    for (int i = 0; i < gameData->count_obstacles; i++) {
+        mvprintw(gameData->obstacles[i]->y, gameData->obstacles[i]->x, "#");
+    }
+    //refresh();
 }
 
+void free_obstacles(GameData* gameData)
+{
+    for (int i = 0; i < gameData->count_obstacles; ++i)
+    {
+        free(gameData->obstacles[i]);
+    }
+
+    free(gameData->obstacles);
+    gameData->obstacles = NULL;
+}
+
+// TODO vymazat netreba
 void serialize_obstacles(Obstacle** obstacles, char* buffer, int buffer_size, int obstaclesCount) {
     //snprintf(buffer, buffer_size, "%d,%d;%d,%d;", obstacles[0]->x, obstacles[0]->y, obstacles[1]->x, obstacles[1]->y);
 
@@ -66,6 +84,7 @@ void serialize_obstacles(Obstacle** obstacles, char* buffer, int buffer_size, in
     }
 }
 
+// TODO vymazat netreba
 void deserialize_obstacles(const char* data, Obstacle** obstacles) {
     const char* obstacles_start = strstr(data, "Obstacles:") + strlen("Obstacles:");
     const char* obstacles_end = strstr(data, "EndOfObstacles");
@@ -82,16 +101,6 @@ void deserialize_obstacles(const char* data, Obstacle** obstacles) {
         obstacles[obstacle_index++] = create_obstacle(x, y);
         obstacle_token = strtok(NULL, ";");
     }
-}
-
-void free_obstacles(Obstacle** obstacles, int obstaclesCount)
-{
-    for (int i = 0; i < obstaclesCount; ++i)
-    {
-        free(obstacles[i]);
-    }
-
-    free(obstacles);
 }
 
 SnakeSegment* create_segment(int x, int y) {
@@ -133,6 +142,7 @@ void add_segment(SnakeSegment* head) {
     current->next = create_segment(current->x, current->y);
 }
 
+// TODO delete -> moved to draw_map
 void draw_borders() {
     for (int i = 0; i < WIDTH; ++i) {
         mvprintw(0, i, "#");
