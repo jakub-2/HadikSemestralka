@@ -1,4 +1,4 @@
-﻿#include "Menu.h"
+﻿//#include "Menu.h"
 #include "Server.h"
 
 #define DELAY_SIRKA 100000
@@ -11,6 +11,8 @@ int main() {
     //char* poleSvetov[] = { "Svet bez prekazok", "Svet s prekazkami"};
 
     //int vybranySvet = menu(poleSvetov, velkost);
-    
+
+    test();
+
     return 0;
 } 
