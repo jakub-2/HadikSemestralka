@@ -184,7 +184,10 @@ void draw_snakes(Snake** snakes)
 {
     for (int i = 0; i < 2; ++i)
     {
-        draw_snake(snakes[i]);
+	    if (snakes[i]->isDead == 0)
+	    {
+            draw_snake(snakes[i]);
+	    }
     }
 }
 
