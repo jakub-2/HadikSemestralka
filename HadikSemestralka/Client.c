@@ -88,7 +88,7 @@ void* send_data(void* data)
                 pthread_mutex_unlock(buffer->lock);
             }
         }
-        usleep(10000);
+        usleep(20000);
         //pthread_mutex_unlock(buffer->lock);
     }
     return NULL;
@@ -111,7 +111,7 @@ void* receive_data(void* data)
             pthread_cond_wait(buff->is_New, buff->lock);
         }
 
-        if (buff->game_data == NULL)
+        if (buff->game_data->timer == -1)
         {
             break;
         }
@@ -159,7 +159,7 @@ void* run_server(void* data)
     server_data* server_buffer = (server_data*)data;
 
     createGameS(server_buffer->type, server_buffer->mode, server_buffer->width, server_buffer->height, server_buffer->timer, server_buffer->send_buffer, server_buffer->receive_buffer);
-
+    return NULL;
 }
 
 void create_session()
@@ -299,4 +299,5 @@ void create_session()
 	pthread_join(client_send_t, NULL);
     pthread_join(client_receive_t, NULL);
 
+    printf("YAY\n");
 }
