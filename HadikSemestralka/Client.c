@@ -1,10 +1,64 @@
 #include "Client.h"
 
+// Function to copy a single SnakeSegment node
+SnakeSegment* copySnakeSegment(const SnakeSegment* original) {
+    if (original == NULL) {
+        return NULL;
+    }
+
+    // Allocate memory for the new segment
+    SnakeSegment* copy = (SnakeSegment*)malloc(sizeof(SnakeSegment));
+    if (!copy) {
+        return NULL; // Handle allocation failure
+    }
+
+    // Copy the values
+    copy->x = original->x;
+    copy->y = original->y;
+    copy->next = copySnakeSegment(original->next); // Recursively copy the next segment
+
+    return copy;
+}
+
+// Function to copy the entire Snake structure
+Snake* copySnake(const Snake* original) {
+    if (original == NULL) {
+        return NULL;
+    }
+
+    // Allocate memory for the new snake
+	Snake* snake = (Snake*)malloc(sizeof(Snake));
+    if (!snake) 
+    {
+        return NULL; // Handle allocation failure
+    }
+
+    // Copy the simple fields
+    snake->score = original->score;
+    snake->direction = original->direction;
+    snake->isDead = original->isDead;
+    snake->idChar = original->idChar;
+
+    // Deep copy the linked list of SnakeSegment
+    snake->head = copySnakeSegment(original->head);
+    return snake;
+}
+
+
+Fruit* copy_fruits(Fruit* fruits_old)
+{
+    Fruit* fruit = create_fruit(fruits_old->x, fruits_old->y);
+}
+
 void* send_data(void* data)
 {
 	local_client_receive_buffer* buffer = (local_client_receive_buffer*)data;
     int ch;
     _Bool end;
+    initscr();
+    keypad(stdscr, TRUE); // Enable special keys
+    noecho();             // Disable character echo
+    timeout(0);
     while (1) {
         pthread_mutex_lock(buffer->lock);
         if (buffer->is_end)
@@ -34,6 +88,7 @@ void* send_data(void* data)
                 pthread_mutex_unlock(buffer->lock);
             }
         }
+        usleep(10000);
         //pthread_mutex_unlock(buffer->lock);
     }
     return NULL;
@@ -46,10 +101,6 @@ void* receive_data(void* data)
     // pomocne premenne
 	Fruit** fruits = malloc(sizeof(Fruit) * 2);
     Snake** snakes = malloc(sizeof(Snake) * 2);
-    for (int i = 0; i < 2; ++i)
-    {
-        snakes[i] = malloc(sizeof(Snake));
-    }
     _Bool drawn_border = 0;
     while (1) {
 
@@ -77,8 +128,16 @@ void* receive_data(void* data)
             draw_map(buff->game_data);
         }
 
-        copy_snakes(snakes, buff->game_data->snakes);
-        copy_fruits(fruits, buff->game_data->fruits);
+        free_snakes(snakes);
+        for (int i = 0; i < 2; ++i)
+        {
+        	snakes[i] = copySnake(buff->game_data->snakes[i]);
+        }
+        for (int i = 0; i < 2; ++i)
+        {
+            free(fruits[i]);
+            fruits[i] = copy_fruits(buff->game_data->fruits[i]);
+        }
         //free_fruits(fruits);
         //free_snakes(snakes);
         //buff->game_data->snakes = NULL;
@@ -192,6 +251,10 @@ void create_session()
         }
         clear();
         endwin();
+    }
+    else
+    {
+	    //TODO prihodit vyber map
     }
 
 

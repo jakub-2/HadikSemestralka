@@ -7,16 +7,16 @@ void* remotePlayerInput(void* datas)
 
 	int shm_size = 5;
 	// locate shared memory segment
-	int shmid = shmget(69, shm_size, 0666);
+	int shmid = shmget(69, shm_size, IPC_CREAT | 0666);
 	if (shmid == -1) {
-		perror("shmget");
+		perror("shmget_remote");
 		exit(1);
 	}
 
 	// attach shared memory segment to client's address space
 	char* data = (char*)shmat(shmid, NULL, 0);
 	if (data == (char*)(-1)) {
-		perror("shmat");
+		perror("shmat_remote");
 		exit(1);
 	}
 
@@ -58,7 +58,7 @@ void* remotePlayerInput(void* datas)
 		pthread_mutex_unlock(buffer->lock);
 		//asi bez signalizacie aby hra nestala
 		//preistotu signal pre dalsi thread ale asi netreba
-		pthread_cond_signal(buffer->read_local);
+		//pthread_cond_signal(buffer->read_local);
 		//repeat?
 	}
 	return NULL;
@@ -70,16 +70,17 @@ void* runGame(void* datas)
 	run_game_buffer* buffer = (run_game_buffer*)datas;
 
 	// locate shared memory segment
-	int shmid = shmget(420, buffer->buffer_size, 0666);
+	//int shmid = shmget(420, buffer->buffer_size, 0666);
+	int shmid = shmget(420, 2048, IPC_CREAT | 0666);
 	if (shmid == -1) {
-		perror("shmget");
+		perror("shmget_server");
 		exit(1);
 	}
 
 	// attach shared memory segment to client's address space
 	char* data = (char*)shmat(shmid, NULL, 0);
 	if (data == (char*)(-1)) {
-		perror("shmat");
+		perror("shmat_server");
 		exit(1);
 	}
 
@@ -95,14 +96,13 @@ void* runGame(void* datas)
 		for (int i = 0; i < 2; ++i)
 		{
 			direction[i] = buffer->receive_buffer->direction[i];
-			if (direction[i] == -1)
-			{
-				direction[i] = buffer->game_data->snakes[i]->direction;
-			}
-			direction[i] = -1;
+			//if (direction[i] == -1)
+			//{
+			//	direction[i] = buffer->game_data->snakes[i]->direction;
+			//}
+			buffer->receive_buffer->direction[i] = -1;
 		}
 		pthread_mutex_unlock(buffer->receive_buffer->lock);
-		pthread_cond_signal(buffer->receive_buffer->read_local);
 		pthread_cond_signal(buffer->receive_buffer->read_remote);
 
 		//if zahranie moveu ukonci hru
@@ -118,6 +118,7 @@ void* runGame(void* datas)
 
 		pthread_mutex_unlock(buffer->send_buffer->lock);
 		pthread_cond_signal(buffer->send_buffer->is_New);
+		pthread_cond_signal(buffer->receive_buffer->read_local);
 
 		//send shared data
 		//serialize_game(snakes, fruits, buffer->buffer, buffer->buffer_size);
@@ -148,16 +149,16 @@ void* check_connection(void* datas)
 
 	int SHM_SIZE = 25;
 	// locate shared memory segment
-	int shmid = shmget(1000, 25, 0666);
+	int shmid = shmget(1000, SHM_SIZE, IPC_CREAT | 0666);
 	if (shmid == -1) {
-		perror("shmget");
+		perror("shmget_connection");
 		exit(1);
 	}
 
 	// attach shared memory segment to client's address space
 	char* data = (char*)shmat(shmid, NULL, 0);
 	if (data == (char*)(-1)) {
-		perror("shmat");
+		perror("shmat_connection");
 		exit(1);
 	}
 
@@ -218,6 +219,8 @@ void createGameS(int type, int mode, int width, int height, int timer, local_cli
 	game_data->height = height;
 	game_data->type = type;
 	game_data->mode = mode;
+	game_data->timer = timer;
+	game_data->count_free_spaces = 20;
 
 	createGame(game_data, 0);
 	srand(time(0));

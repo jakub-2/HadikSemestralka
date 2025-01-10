@@ -128,6 +128,10 @@ Snake* create_snake(char idChar, int x, int y, int direction) {
 void free_snakes(Snake** snakes) {
     for (int i = 0; i < 2; ++i)
     {
+	    if (snakes[i] == NULL)
+	    {
+            continue;
+	    }
         SnakeSegment* head = snakes[i]->head;
         while (head) {
             SnakeSegment* temp = head;
@@ -180,8 +184,6 @@ void draw_snakes(Snake** snakes)
 {
     for (int i = 0; i < 2; ++i)
     {
-        char c;
-        //sprintf(&c, "%d", i);
         draw_snake(snakes[i]);
     }
 }
@@ -200,6 +202,7 @@ void erase_snake(SnakeSegment* snake) {
     while (current) {
         mvprintw(current->y, current->x, " "); // Move to the position and replace with a space
         current = current->next;
+        refresh();
     }
     refresh(); // Refresh the screen to apply changes
 }
@@ -527,17 +530,17 @@ int calculate_buffer_size(int width, int height, int num_fruits, int num_snakes)
     return fruit_size + snake_size + metadata_size;
 }
 
-void update(Fruit** fruits, Snake** snakes, Fruit** old_fruits, Snake** old_snakes)
+void update(Fruit** fruits, Snake** snakes, GameData* game_data)
 {
     for (int i = 0; i < 2; ++i)
     {
-        erase_snake(old_snakes[i]->head);
-        erase_fruit(old_fruits[i]);
+        erase_snake(snakes[i]->head);
+        erase_fruit(fruits[i]);
     }
 
-    draw_snakes(snakes);
-    draw_fruit(fruits);
-    draw_score(snakes);
+    draw_snakes(game_data->snakes);
+    draw_fruit(game_data->fruits);
+    draw_score(game_data);
 }
 
 void moveSnake(GameData* game_data, _Bool _print)
@@ -816,6 +819,9 @@ _Bool play(int* moves, GameData* game_data, _Bool _print)
     {
         return 1;
     }
-    draw_score(game_data);
+    if (_print)
+    {
+        draw_score(game_data);
+    }
     return 0;
 }

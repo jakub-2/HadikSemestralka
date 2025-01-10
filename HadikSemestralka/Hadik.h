@@ -96,7 +96,7 @@ void deserialize_game_data(const char* data, GameData* game);
 
 void deserialize_data(const char* data, Fruit** fruits, Snake** snakes);
 int calculate_buffer_size(int width, int height, int num_fruits, int num_snakes);
-void update(Fruit** fruits, Snake** snakes, Fruit** old_fruits, Snake** old_snakes);
+void update(Fruit** fruits, Snake** snakes, GameData* game_data);
 
 void moveSnake(GameData* game_data, _Bool _print);
 
