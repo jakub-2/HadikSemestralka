@@ -45,7 +45,7 @@ int menu(char** options, int numOfOptions)
              break;
          }
      }
-
+     clear();
      endwin();  // End curses mode
      return selected;
 }
