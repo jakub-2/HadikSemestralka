@@ -28,6 +28,7 @@ typedef struct connected_client
 {
 	pthread_mutex_t* lock;
 	_Bool is_connected;
+	_Bool is_end;
 }connected_client;
 
 // buffer for runGame thread

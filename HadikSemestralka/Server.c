@@ -33,33 +33,41 @@ void* remotePlayerInput(void* datas)
 
 			// Respond to the client
 			memset(data, 0, shm_size);
-		}
-
-
-		//zapisem do bufferu pre run hry
+			//zapisem do bufferu pre run hry
 		//locknem pre zapis directionu
-		pthread_mutex_lock(buffer->lock);
+			pthread_mutex_lock(buffer->lock);
 
-		//pokial nebol precitany smer tak cakam
-		while (buffer->direction[1] == -1)
-		{
-			pthread_cond_wait(buffer->read_remote, buffer->lock);
+			//pokial nebol precitany smer tak cakam
+			while (buffer->direction[1] != -1)
+			{
+				pthread_cond_wait(buffer->read_remote, buffer->lock);
+			}
+
+			//if (buffer->direction[1] == -2)
+			//{
+			//	break;
+			//}
+
+			int test = remoteDirection;
+			//smer bol precitany tak zapisem ziskany input
+			buffer->direction[1] = remoteDirection;
+
+			//triggernem cond ze som odovzdal input
+			pthread_mutex_unlock(buffer->lock);
+			//asi bez signalizacie aby hra nestala
+			//preistotu signal pre dalsi thread ale asi netreba
+			//pthread_cond_signal(buffer->read_local);
+			//repeat?
 		}
+		pthread_mutex_lock(buffer->lock);
 
 		if (buffer->direction[1] == -2)
 		{
 			break;
 		}
 
-		//smer bol precitany tak zapisem ziskany input
-		buffer->direction[1] = remoteDirection;
-
-		//triggernem cond ze som odovzdal input
 		pthread_mutex_unlock(buffer->lock);
-		//asi bez signalizacie aby hra nestala
-		//preistotu signal pre dalsi thread ale asi netreba
-		//pthread_cond_signal(buffer->read_local);
-		//repeat?
+		usleep(20000);
 	}
 	return NULL;
 }
@@ -133,14 +141,34 @@ void* runGame(void* datas)
 	//send local data
 	pthread_mutex_lock(buffer->send_buffer->lock);
 
-	buffer->send_buffer->game_data = NULL;
+	buffer->send_buffer->game_data = buffer->game_data;
+	buffer->send_buffer->game_data->timer = -1;
+	pthread_cond_signal(buffer->send_buffer->is_New);
 
 	pthread_mutex_unlock(buffer->send_buffer->lock);
-	pthread_cond_signal(buffer->send_buffer->is_New);
+
+	//end local client send data thread
+	pthread_mutex_lock(buffer->receive_buffer->lock);
+
+	buffer->receive_buffer->is_end = 1;
+	buffer->receive_buffer->direction[0] = -2;
+	buffer->receive_buffer->direction[1] = -2;
+
+	pthread_mutex_unlock(buffer->receive_buffer->lock);
+	pthread_cond_signal(buffer->receive_buffer->read_remote);
+
+
+	//end server connection
+	pthread_mutex_lock(buffer->connection_buffer->lock);
+
+	buffer->connection_buffer->is_end = 1;
+
+	pthread_mutex_unlock(buffer->connection_buffer->lock);
 
 	//send shared data and detach shared memory
 	strncpy(data, "End\0", buffer->buffer_size - 1);
 	shmdt(data);
+	return NULL;
 }
 
 void* check_connection(void* datas)
@@ -165,6 +193,14 @@ void* check_connection(void* datas)
 	int counter = 0;
 	while (1)
 	{
+		pthread_mutex_lock(buffer->lock);
+		if (buffer->is_end)
+		{
+			pthread_mutex_unlock(buffer->lock);
+			break;
+		}
+		pthread_mutex_unlock(buffer->lock);
+
 		if (strlen(data) > 0) {
 			if (strcmp(data, "End") == 0)
 			{
@@ -233,6 +269,7 @@ void createGameS(int type, int mode, int width, int height, int timer, local_cli
 	buffer->connection_buffer = malloc(sizeof(connected_client));
 	buffer->connection_buffer->lock = malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(buffer->connection_buffer->lock, NULL);
+	buffer->connection_buffer->is_end = 0;
 	buffer->receive_buffer = client_receive_buffer;
 	buffer->send_buffer = client_buffer;
 	buffer->buffer = stringBuffer;
