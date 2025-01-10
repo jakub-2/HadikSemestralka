@@ -1,15 +1,14 @@
 #include "ClientBasic.h"
 
-
 //#include <sys/ipc.h>
 #include <pthread.h>
 #include <sys/shm.h>
 
 //TODO create struct for sending and receiving data
 
-void* send_data(void* data)
+void* send_data_basic(void* datas)
 {
-    inter_buffer* buffer = (inter_buffer*)data;
+    inter_buffer* buffer = (inter_buffer*)datas;
 
     int shm_size = 5;
     // locate shared memory segment
@@ -28,6 +27,10 @@ void* send_data(void* data)
 
     int ch;
     _Bool end;
+    initscr();
+    keypad(stdscr, TRUE); // Enable special keys
+    noecho();             // Disable character echo
+    timeout(0);
     while (1) {
         pthread_mutex_lock(&buffer->lock);
         if (buffer->is_end)
@@ -42,20 +45,26 @@ void* send_data(void* data)
         if (ch != ERR)
         {
             if (ch == KEY_UP || ch == KEY_DOWN || ch == KEY_LEFT || ch == KEY_RIGHT) {
-                strncpy(data, ch, shm_size);
+                //strncpy(data, ch, shm_size);
+                char ch_str[5];
+                sprintf(ch_str, "%d\0", ch);
+            	strncpy(data, ch_str, shm_size);
             }
         }
+        usleep(20000);
     }
     shmdt(data);
     return NULL;
 }
 
-void* receive_data(void* data)
+void* receive_data_basic(void* datas)
 {
-    temp_receive* buff = (temp_receive*)data;
-    int shm_size = calculate_buffer_size(buff->width, buff->height, 2, 2);
+    temp_receive* buff = (temp_receive*)datas;
+    //int shm_size = calculate_buffer_size(buff->width, buff->height, 2, 2);
+    int shm_size = 2048;
     // locate shared memory segment
-    int shmid = shmget(420, shm_size, 0666);
+
+	int shmid = shmget(420, shm_size, 0666);
     if (shmid == -1) {
         perror("shmget");
         exit(1);
@@ -67,20 +76,21 @@ void* receive_data(void* data)
         perror("shmat");
         exit(1);
     }
-    Fruit** fruits = malloc(sizeof(Fruit) * 2);
-    Snake** snakes = malloc(sizeof(Snake) * 2);
+    memset(data, 0, shm_size);
+    //Fruit** fruits = malloc(sizeof(Fruit) * 2);
+    //Snake** snakes = malloc(sizeof(Snake) * 2);
 
-    for (int i = 0; i < 2; ++i) {
-        //buff->fruits[i] = malloc(sizeof(Fruit));
-        memcpy(buff->fruits[i], fruits[i], sizeof(Fruit));
-        memcpy(buff->snakes[i], snakes[i], sizeof(Snake));
-    }
+    //for (int i = 0; i < 2; ++i) {
+    //    //buff->fruits[i] = malloc(sizeof(Fruit));
+    //    memcpy(buff->fruits[i], fruits[i], sizeof(Fruit));
+    //    memcpy(buff->snakes[i], snakes[i], sizeof(Snake));
+    //}
 
     while (1) {
         if (strlen(data) > 0) {
             //printf("Client: %s\n", data);
-
-            if (strcmp(data, "End"))
+            int temp = strcmp(data, "End");
+            if (strcmp(data, "End") == 0)
             {
                 pthread_mutex_lock(&buff->inter_buffer->lock);
                 buff->inter_buffer->is_end = 1;
@@ -88,32 +98,32 @@ void* receive_data(void* data)
                 break;
             }
 
-            deserialize_data(data, fruits, snakes);
-            update(fruits, snakes, buff->fruits, buff->snakes);
+            //deserialize_data(data, fruits, snakes);
+            //update(fruits, snakes, buff->fruits, buff->snakes);
 
-            for (int i = 0; i < 2; ++i) {
-                //buff->fruits[i] = malloc(sizeof(Fruit));
-                memcpy(buff->fruits[i], fruits[i], sizeof(Fruit));
-                memcpy(buff->snakes[i], snakes[i], sizeof(Snake));
-            }
+            //for (int i = 0; i < 2; ++i) {
+            //    //buff->fruits[i] = malloc(sizeof(Fruit));
+            //    memcpy(buff->fruits[i], fruits[i], sizeof(Fruit));
+            //    memcpy(buff->snakes[i], snakes[i], sizeof(Snake));
+            //}
 
-            free_fruits(fruits);
-            free_snakes(snakes);
+            //free_fruits(fruits);
+            //free_snakes(snakes);
            
 
-            // Respond to the client
+            // erase memory
             memset(data, 0, shm_size);
         }
     }
-    free(fruits);
-    free(snakes);
+    //free(fruits);
+    //free(snakes);
     shmdt(data);
     return NULL;
 }
 
-void* send_connection_up(void* data)
+void* send_connection_up(void* datas)
 {
-    inter_buffer* buffer = (inter_buffer*)data;
+    inter_buffer* buffer = (inter_buffer*)datas;
     int shm_size = 25;
 
 	// locate shared memory segment
@@ -162,5 +172,14 @@ _Bool try_connect_server()
 
 void start()
 {
+    pthread_t test_t, send_t;
+    temp_receive* test = malloc(sizeof(temp_receive));
+    test->inter_buffer = malloc(sizeof(inter_buffer));
+    //test->inter_buffer->lock
+
+    pthread_create(&test_t, NULL, receive_data_basic, test);
+    pthread_create(&send_t, NULL, send_data_basic, test->inter_buffer);
     //TODO nahadzat thready
+    pthread_join(test_t, NULL);
+    pthread_join(send_t, NULL);
 }
