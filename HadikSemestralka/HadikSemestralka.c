@@ -1,5 +1,7 @@
 ﻿//#include "Menu.h"
 #include "Server.h"
+#include "ClientBasic.h"
+#include "Client.h"
 
 #define DELAY_SIRKA 100000
 #define DELAY_VYSKA 150000
@@ -12,7 +14,9 @@ int main() {
 
     //int vybranySvet = menu(poleSvetov, velkost);
 
-    test();
+    //test();
+    //start();
+    create_session();
 
     return 0;
 } 
