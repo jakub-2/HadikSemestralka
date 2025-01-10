@@ -1,4 +1,5 @@
 #include "Client.h"
+#include <dirent.h>
 
 // Function to copy a single SnakeSegment node
 SnakeSegment* copySnakeSegment(const SnakeSegment* original) {
@@ -162,6 +163,10 @@ void* run_server(void* data)
 
 }
 
+int compareStr(const void* a, const void* b) {
+    return strcmp(*(const char**)a, *(const char**)b);
+}
+
 void create_session()
 {
     char* options[] = { "Standardny", "Casovy" };
@@ -254,9 +259,66 @@ void create_session()
     }
     else
     {
-	    //TODO prihodit vyber map
-    }
+        int max_files = 100;
+        int max_path_length = 256;
 
+        char basePath[max_path_length];
+        char* mapFiles[max_files];
+        char* mapOptions[max_files];
+        int mapFileCount = 0;
+
+        // input dir path from user
+        initscr();
+        printw("Enter path to Maps dir: ");
+        scanw("%255s", basePath);
+        refresh();
+
+        //DIR* dir = opendir("/home/velas4/.vs/HadikSemestralka/HadikSemestralka/Maps/");
+    	DIR* dir = opendir(basePath);
+        if (!dir) {
+            perror("Could not open Maps directory");
+        }
+
+        // read from directory
+        struct dirent* entry;
+        while ((entry = readdir(dir)) != NULL) {
+            if (strncmp(entry->d_name, "map_", 4) == 0 && strstr(entry->d_name, ".txt")) {
+                if (mapFileCount >= max_files) {
+                    fprintf(stderr, "Too many map files in the directory!\n");
+                    break;
+                }
+
+                mapFiles[mapFileCount] = malloc(max_path_length);
+                snprintf(mapFiles[mapFileCount], max_path_length, "%s", entry->d_name);
+
+                mapOptions[mapFileCount] = malloc(max_path_length);
+                snprintf(mapOptions[mapFileCount], max_path_length, "Map: %s", entry->d_name);
+
+                mapFileCount++;
+            }
+        }
+        closedir(dir);
+
+        // check file count in Maps dir
+        if (mapFileCount == 0) {
+            fprintf(stderr, "No map files found in the directory!\n");
+        }
+
+        // quick sort
+        qsort(mapOptions, mapFileCount, sizeof(char*), compareStr);
+
+        // menu options for map
+        int map = menu(mapOptions, mapFileCount);
+
+        strcat(basePath, mapFiles[map]);
+        printw("\nFinal path: %s\n", basePath);
+
+        printw("\nPress any key to exit");
+        refresh();
+        getch();
+
+        endwin();
+    }
 
     local_client_receive_buffer* receive_buffer = malloc(sizeof(local_client_receive_buffer));
     receive_buffer->is_end = 0;
