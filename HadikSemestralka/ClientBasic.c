@@ -45,7 +45,7 @@ void* send_data_basic(void* datas)
         ch = getch();
         if (ch != ERR)
         {
-            if (ch == KEY_UP || ch == KEY_DOWN || ch == KEY_LEFT || ch == KEY_RIGHT) {
+            if (ch == KEY_UP || ch == KEY_DOWN || ch == KEY_LEFT || ch == KEY_RIGHT || ch == 27) {
                 //strncpy(data, ch, shm_size);
                 char ch_str[5];
                 sprintf(ch_str, "%d\0", ch);
@@ -111,7 +111,9 @@ void* receive_data_basic(void* datas)
                 pthread_mutex_unlock(&buff->inter_buffer->lock);
                 break;
             }
-
+            free_fruits(buff->game_data->fruits);
+            free_snakes(buff->game_data->snakes);
+            free_obstacles(buff->game_data);
             //deserialize_data(data, fruits, snakes);
             deserialize_game_data(data, buff->game_data);
             //update(fruits, snakes, buff->fruits, buff->snakes);
@@ -135,21 +137,12 @@ void* receive_data_basic(void* datas)
             {
                 snakes[i] = copySnake(buff->game_data->snakes[i]);
             }
+            free_fruits(fruits);
             for (int i = 0; i < 2; ++i)
             {
-                free(fruits[i]);
                 fruits[i] = copy_fruits(buff->game_data->fruits[i]);
             }
-
-            //for (int i = 0; i < 2; ++i) {
-            //    //buff->fruits[i] = malloc(sizeof(Fruit));
-            //    memcpy(buff->fruits[i], fruits[i], sizeof(Fruit));
-            //    memcpy(buff->snakes[i], snakes[i], sizeof(Snake));
-            //}
-
-            //free_fruits(fruits);
-            //free_snakes(snakes);
-           
+            
 
             // erase memory
             memset(data, 0, shm_size);
@@ -223,6 +216,7 @@ void start()
     test->game_data = malloc(sizeof(GameData));
     test->game_data->snakes = malloc(sizeof(Snake) * 2);
     test->game_data->fruits = malloc(sizeof(Fruit) * 2);
+    test->game_data->obstacles = NULL;
     test->inter_buffer = malloc(sizeof(inter_buffer));
     //test->inter_buffer->lock
 
@@ -237,4 +231,17 @@ void start()
     {
         printf("Score Snake %c: %d\n", test->game_data->snakes[i]->idChar, test->game_data->snakes[i]->score);
     }
+
+    free_snakes(test->game_data->snakes);
+    free(test->game_data->snakes);
+    free_fruits(test->game_data->fruits);
+    free(test->game_data->fruits);
+    if (test->game_data->obstacles != NULL)
+    {
+        free_obstacles(test->game_data);
+    }
+    free(test->game_data);
+
+    free(test->inter_buffer);
+    free(test);
 }

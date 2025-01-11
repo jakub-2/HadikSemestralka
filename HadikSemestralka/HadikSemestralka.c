@@ -15,8 +15,26 @@ int main() {
     //int vybranySvet = menu(poleSvetov, velkost);
 
     //test();
-    //start();
-    create_session();
+
+    char* options[] = { "New Game", "Connect to Game", "Exit" };
+    int vyber;
+    while (1)
+    {
+        //TODO pripojenie z pozastavenia
+        
+        vyber = menu(options, 3);
+        if (vyber == 0)
+        {
+            create_session();
+        } else if (vyber == 1)
+        {
+            start();
+        }
+        else
+        {
+	        break;
+        }
+    }
 
     return 0;
 } 
