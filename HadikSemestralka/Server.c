@@ -1,10 +1,10 @@
 #include "Server.h"
-
+#include <unistd.h>
+#include <sys/types.h>
 
 void* remotePlayerInput(void* datas)
 {
 	local_client_receive_buffer* buffer = (local_client_receive_buffer*)datas;
-
 	int shm_size = 5;
 	// locate shared memory segment
 	int shmid = shmget(69, shm_size, IPC_CREAT | 0666);
@@ -76,7 +76,6 @@ void* remotePlayerInput(void* datas)
 void* runGame(void* datas)
 {
 	run_game_buffer* buffer = (run_game_buffer*)datas;
-
 	// locate shared memory segment
 	//int shmid = shmget(420, buffer->buffer_size, 0666);
 	int shmid = shmget(420, 2048, IPC_CREAT | 0666);
@@ -117,6 +116,11 @@ void* runGame(void* datas)
 		if (play(direction, buffer->game_data, 0))
 		{
 			break;
+		}
+
+		if (buffer->game_data->mode == 1)
+		{
+			buffer->game_data->timer -= .2;
 		}
 
 		//send local data
@@ -174,7 +178,6 @@ void* runGame(void* datas)
 void* check_connection(void* datas)
 {
 	connected_client* buffer = (connected_client*)datas;
-
 	int SHM_SIZE = 25;
 	// locate shared memory segment
 	int shmid = shmget(1000, SHM_SIZE, IPC_CREAT | 0666);
@@ -256,7 +259,7 @@ void createGameS(int type, int mode, int width, int height, int timer, local_cli
 	game_data->type = type;
 	game_data->mode = mode;
 	game_data->timer = timer;
-	game_data->count_free_spaces = 20;
+	//game_data->count_free_spaces = 20;
 
 	createGame(game_data, 0);
 	srand(time(0));
