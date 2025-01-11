@@ -1,80 +1,32 @@
 #include "Client.h"
 #include <dirent.h>
 
-// Function to copy a single SnakeSegment node
-SnakeSegment* copySnakeSegment(const SnakeSegment* original) {
-    if (original == NULL) {
-        return NULL;
-    }
-
-    // Allocate memory for the new segment
-    SnakeSegment* copy = (SnakeSegment*)malloc(sizeof(SnakeSegment));
-    if (!copy) {
-        return NULL; // Handle allocation failure
-    }
-
-    // Copy the values
-    copy->x = original->x;
-    copy->y = original->y;
-    copy->next = copySnakeSegment(original->next); // Recursively copy the next segment
-
-    return copy;
-}
-
-// Function to copy the entire Snake structure
-Snake* copySnake(const Snake* original) {
-    if (original == NULL) {
-        return NULL;
-    }
-
-    // Allocate memory for the new snake
-	Snake* snake = (Snake*)malloc(sizeof(Snake));
-    if (!snake) 
-    {
-        return NULL; // Handle allocation failure
-    }
-
-    // Copy the simple fields
-    snake->score = original->score;
-    snake->direction = original->direction;
-    snake->isDead = original->isDead;
-    snake->idChar = original->idChar;
-
-    // Deep copy the linked list of SnakeSegment
-    snake->head = copySnakeSegment(original->head);
-    return snake;
-}
-
-
-Fruit* copy_fruits(Fruit* fruits_old)
-{
-    Fruit* fruit = create_fruit(fruits_old->x, fruits_old->y);
-}
-
 void* send_data(void* data)
 {
 	local_client_receive_buffer* buffer = (local_client_receive_buffer*)data;
     int ch;
-    _Bool end;
-    initscr();
+    if (!initscr()) {
+        fprintf(stderr, "Error initializing ncurses.\n");
+        return NULL;
+    }
     keypad(stdscr, TRUE); // Enable special keys
     noecho();             // Disable character echo
+    //cbreak();
     timeout(0);
-    while (1) {
-        pthread_mutex_lock(buffer->lock);
-        if (buffer->is_end)
-        {
-            pthread_mutex_unlock(buffer->lock);
-            break;
-        }
-        pthread_mutex_unlock(buffer->lock);
+    
+    // Fuck me I guess '_'
+    while (!(buffer->is_end)) {
+        /*pthread_mutex_lock(buffer->lock);
+        running = !(buffer->is_end);
+        pthread_mutex_unlock(buffer->lock);*/
 
         // TODO add wait for received data
         //pthread_mutex_lock(buffer->lock);
         //while (buffer->direction[0] == -1)
         //{
-            //pthread_cond_wait(buffer->read_local, buffer->lock);
+        //    pthread_cond_wait(buffer->read_local, buffer->lock);
         //}
+        //pthread_mutex_unlock(buffer->lock);
 
         //sleep(10);
         // Get user input
@@ -92,13 +44,14 @@ void* send_data(void* data)
         usleep(20000);
         //pthread_mutex_unlock(buffer->lock);
     }
+    endwin();
     return NULL;
 }
 
 void* receive_data(void* data)
 {
     local_client_send_buffer* buff = (local_client_send_buffer*)data;
-
+    curs_set(0);
     // pomocne premenne
 	Fruit** fruits = malloc(sizeof(Fruit) * 2);
     Snake** snakes = malloc(sizeof(Snake) * 2);
@@ -152,6 +105,9 @@ void* receive_data(void* data)
     free_snakes(snakes);
     free(fruits);
     free(snakes);
+
+    clear();
+    endwin();
     return NULL;
 }
 
@@ -245,13 +201,13 @@ void create_session()
             noecho();
             timeout(0);
 
-        	if (vyska < 15 || sirka < 15 || vyska > 40 || sirka > 40) {
+        	/*if (vyska < 15 || sirka < 15 || vyska > 40 || sirka > 40) {
                 clear();
                 mvprintw(0, 0, "Nespravne zadane rozmery, skuste znova.");
                 x = 1;
                 refresh();
                 continue;
-            }
+            }*/
             valid = 0; // Exit loop if input is valid
         }
         clear();
@@ -353,13 +309,22 @@ void create_session()
     pthread_t server_t;
 
     pthread_create(&server_t, NULL, run_server, &server_data);
+    usleep(1000);
     pthread_create(&client_send_t, NULL, send_data, receive_buffer);
+    usleep(1550);
     pthread_create(&client_receive_t, NULL, receive_data, send_buffer);
     //TODO spravit thready clienta
 
     pthread_join(server_t, NULL);
-	pthread_join(client_send_t, NULL);
+    usleep(1000);
     pthread_join(client_receive_t, NULL);
+    usleep(1240);
+	pthread_join(client_send_t, NULL);
+    
 
-    printf("YAY\n");
+    printf("Game ended with results:\n");
+    for (int i = 0; i < 2; ++i)
+    {
+        printf("Score Snake %c: %d\n", server_data.send_buffer->game_data->snakes[i]->idChar, server_data.send_buffer->game_data->snakes[i]->score);
+    }
 }
