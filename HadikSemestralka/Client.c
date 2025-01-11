@@ -214,7 +214,7 @@ void create_session()
         endwin();
     }
 
-    char* optionz[] = { "Svet bez prekazok", "Svet s prekazkamy" };
+    char* optionz[] = { "Svet bez prekazok", "Svet s prekazkami" };
     int type = menu(optionz, 2);
     int vyska, sirka = 0;
 
@@ -262,29 +262,38 @@ void create_session()
         int max_files = 100;
         int max_path_length = 256;
 
-        char basePath[max_path_length];
+        char path[max_path_length];
         char* mapFiles[max_files];
         char* mapOptions[max_files];
         int mapFileCount = 0;
 
         // input dir path from user
         initscr();
-        printw("Enter path to Maps dir: ");
-        scanw("%255s", basePath);
-        refresh();
+        echo();
+        mvprintw(0, 0, "Zadaj cestu k priecinku Maps: ");
 
-        //DIR* dir = opendir("/home/velas4/.vs/HadikSemestralka/HadikSemestralka/Maps/");
-    	DIR* dir = opendir(basePath);
-        if (!dir) {
-            perror("Could not open Maps directory");
+        if (scanw("%255s", path) == ERR || strlen(path) == 0) {
+            perror("Nepodarilo sa otvorit priecinok Maps\n");
+            endwin();
+            exit(103);
         }
 
-        // read from directory
+    	refresh();
+
+        //DIR* dir = opendir("/home/velas4/.vs/HadikSemestralka/HadikSemestralka/Maps/");
+    	DIR* dir = opendir(path);
+        if (!dir) {
+            perror("Nepodarilo sa otvorit priecinok Maps\n");
+            endwin();
+            exit(103);
+        }
+
+        // read from dir
         struct dirent* entry;
         while ((entry = readdir(dir)) != NULL) {
             if (strncmp(entry->d_name, "map_", 4) == 0 && strstr(entry->d_name, ".txt")) {
                 if (mapFileCount >= max_files) {
-                    fprintf(stderr, "Too many map files in the directory!\n");
+                    perror("Prilis vela map v priecinku Maps!\n");
                     break;
                 }
 
@@ -292,7 +301,7 @@ void create_session()
                 snprintf(mapFiles[mapFileCount], max_path_length, "%s", entry->d_name);
 
                 mapOptions[mapFileCount] = malloc(max_path_length);
-                snprintf(mapOptions[mapFileCount], max_path_length, "Map: %s", entry->d_name);
+                snprintf(mapOptions[mapFileCount], max_path_length, "Mapa: %s", entry->d_name);
 
                 mapFileCount++;
             }
@@ -301,21 +310,28 @@ void create_session()
 
         // check file count in Maps dir
         if (mapFileCount == 0) {
-            fprintf(stderr, "No map files found in the directory!\n");
+            perror("Nenasli sa ziadne mapy v priecinku Maps\n");
+            endwin();
+            exit(103);
         }
 
-        // quick sort
+        // quick sort options
         qsort(mapOptions, mapFileCount, sizeof(char*), compareStr);
 
+        // end ncurses and then start again for menu options
+        endwin();
+
         // menu options for map
-        int map = menu(mapOptions, mapFileCount);
+    	int map = menu(mapOptions, mapFileCount);
 
-        strcat(basePath, mapFiles[map]);
-        printw("\nFinal path: %s\n", basePath);
+        strcat(path, mapFiles[map]);
+        clear();
+        mvprintw(0, 0, "Cesta k priecinku Maps: %s", path);
 
-        printw("\nPress any key to exit");
+        mvprintw(1, 0, "Press any key to continue");
         refresh();
         getch();
+        clear(); // clear before creating game
 
         endwin();
     }
