@@ -33,7 +33,7 @@ void* send_data(void* data)
         ch = getch();
         if (ch != ERR)
         {
-            if (ch == KEY_UP || ch == KEY_DOWN || ch == KEY_LEFT || ch == KEY_RIGHT) {
+            if (ch == KEY_UP || ch == KEY_DOWN || ch == KEY_LEFT || ch == KEY_RIGHT || ch == 27) {
                 pthread_mutex_lock(buffer->lock);
 
                 buffer->direction[0] = ch;
@@ -297,6 +297,13 @@ void create_session()
         clear(); // clear before creating game
 
         endwin();
+
+        for (int i = 0; i < mapFileCount; ++i)
+        {
+            free(mapFiles[i]);
+            free(mapOptions[i]);
+        }
+        //free(mapFiles);
     }
 
     local_client_receive_buffer* receive_buffer = malloc(sizeof(local_client_receive_buffer));
@@ -350,4 +357,31 @@ void create_session()
     {
         printf("Score Snake %c: %d\n", server_data.send_buffer->game_data->snakes[i]->idChar, server_data.send_buffer->game_data->snakes[i]->score);
     }
+
+
+    free_snakes(server_data.send_buffer->game_data->snakes);
+    free(server_data.send_buffer->game_data->snakes);
+    free_fruits(server_data.send_buffer->game_data->fruits);
+    free(server_data.send_buffer->game_data->fruits);
+    if (server_data.send_buffer->game_data->obstacles != NULL)
+    {
+        free_obstacles(server_data.send_buffer->game_data);
+    }
+    free(server_data.send_buffer->game_data);
+
+    pthread_mutex_destroy(send_buffer->lock);
+    free(send_buffer->lock);
+    pthread_cond_destroy(send_buffer->is_New);
+    free(send_buffer->is_New);
+    free(send_buffer);
+
+    
+    free(receive_buffer->direction);
+    pthread_mutex_destroy(receive_buffer->lock);
+    free(receive_buffer->lock);
+    pthread_cond_destroy(receive_buffer->read_remote);
+    free(receive_buffer->read_remote);
+    pthread_cond_destroy(receive_buffer->read_local);
+    free(receive_buffer->read_local);
+    free(receive_buffer);
 }

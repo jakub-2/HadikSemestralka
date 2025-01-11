@@ -1,6 +1,6 @@
 #include "Server.h"
 #include <unistd.h>
-#include <sys/types.h>
+//#include <sys/types.h>
 
 void* remotePlayerInput(void* datas)
 {
@@ -113,6 +113,15 @@ void* runGame(void* datas)
 		pthread_cond_signal(buffer->receive_buffer->read_remote);
 
 		//if zahranie moveu ukonci hru
+		for (int i = 0; i < 2; ++i)
+		{
+			// flip na zastavenie
+			if (direction[i] == 27)
+			{
+				buffer->game_data->snakes[i]->isPaused = !(buffer->game_data->snakes[i]->isPaused);
+				direction[i] = buffer->game_data->snakes[i]->direction;
+			}
+		}
 		if (play(direction, buffer->game_data, 0))
 		{
 			break;
@@ -280,6 +289,12 @@ void createGameS(int type, int mode, int width, int height, int timer, local_cli
 	buffer->game_data = game_data;
 
 	createServer(buffer);
+
+	pthread_mutex_destroy(buffer->connection_buffer->lock);
+	free(buffer->connection_buffer->lock);
+	free(buffer->connection_buffer);
+	free(buffer);
+	free(stringBuffer);
 }
 
 void test()

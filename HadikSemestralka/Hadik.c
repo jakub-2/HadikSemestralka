@@ -121,6 +121,7 @@ Snake* create_snake(char idChar, int x, int y, int direction) {
     snake->direction = direction;
     snake->score = 0;
     snake->isDead = 0;
+    snake->isPaused = 0;
     snake->idChar = idChar;
     return snake;
 }
@@ -448,6 +449,11 @@ void deserialize_game_data(const char* data, GameData* game) {
 
     char* obstacle_token = strtok(obstacles_data, ";");
     int obstacle_index = 0;
+
+    if (game->obstacles == NULL)
+    {
+        game->obstacles = malloc(sizeof(Obstacle) * game->count_obstacles);
+    }
     while (obstacle_token) {
         int x, y;
         sscanf(obstacle_token, "%d,%d", &x, &y);
@@ -642,6 +648,10 @@ void moveSnake(GameData* game_data, _Bool _print)
     // Check if colliding with border
     for (int i = 0; i < 2; ++i)
     {
+	    if (game_data->snakes[i]->isPaused)
+	    {
+		    continue;
+	    }
         if (game_data->snakes[i]->isDead == 1)
         {
             continue;
@@ -674,7 +684,7 @@ void moveSnake(GameData* game_data, _Bool _print)
     // check if snakes move to same space
     if (game_data->snakes[0]->isDead == game_data->snakes[1]->isDead)
     {
-        if (new_x[0] == new_x[1] && new_y[0] == new_y[1])
+        if (new_x[0] == new_x[1] && new_y[0] == new_y[1] && !game_data->snakes[0]->isPaused && !game_data->snakes[0]->isPaused)
         {
             game_data->snakes[0]->isDead = 1;
             game_data->snakes[1]->isDead = 1;
@@ -684,7 +694,7 @@ void moveSnake(GameData* game_data, _Bool _print)
     _Bool tempDeath[] = { 0, 0 };
     for (int i = 0; i < 2; ++i)
     {
-        if (game_data->snakes[i]->isDead == 1)
+        if (game_data->snakes[i]->isDead == 1 || game_data->snakes[i]->isPaused)
         {
             continue;
         }
@@ -704,7 +714,7 @@ void moveSnake(GameData* game_data, _Bool _print)
 
         // check if any part of snake2 collides with new cords
         int index2 = (i + 1) % 2;
-        if (game_data->snakes[index2]->isDead == 1)
+        if (game_data->snakes[index2]->isDead == 1 || game_data->snakes[index2]->isPaused)
         {
             continue;
         }
@@ -725,7 +735,7 @@ void moveSnake(GameData* game_data, _Bool _print)
     //check if snake collides with obstacles
     for (int i = 0; i < 2; ++i)
     {
-	    if (game_data->snakes[i]->isDead)
+	    if (game_data->snakes[i]->isDead || game_data->snakes[i]->isPaused)
 	    {
             continue;
 	    }
@@ -748,6 +758,7 @@ void moveSnake(GameData* game_data, _Bool _print)
         if (tempDeath[i])
         {
             game_data->snakes[i]->isDead = tempDeath[i];
+            game_data->snakes[i]->isPaused = 0;
             game_data->count_free_spaces += game_data->snakes[i]->score + 3;
         }
     }
@@ -755,7 +766,7 @@ void moveSnake(GameData* game_data, _Bool _print)
     // Add new head
     for (int i = 0; i < 2; ++i)
     {
-        if (game_data->snakes[i]->isDead == 1)
+        if (game_data->snakes[i]->isDead == 1 || game_data->snakes[i]->isPaused)
         {
             continue;
         }
@@ -772,7 +783,7 @@ void moveSnake(GameData* game_data, _Bool _print)
     for (int i = 0; i < 2; ++i)
     {
         //check if snake is dead
-        if (game_data->snakes[i]->isDead == 1)
+        if (game_data->snakes[i]->isDead == 1 || game_data->snakes[i]->isPaused)
         {
             continue;
         }
@@ -815,7 +826,7 @@ void createGame(GameData* game_data, _Bool _print)
     {
         //load_map("/home/jakub/.vs/HadikSemestralka/HadikSemestralka/map.txt", game_data);
         //load_map("/home/jakub/.vs/HadikSemestralka/HadikSemestralka/map1.txt", game_data);
-        load_map("/home/jakub/.vs/HadikSemestralka/HadikSemestralka/map2.txt", game_data);
+        load_map("/home/jakub/.vs/HadikSemestralka/HadikSemestralka/Maps/map_1.txt", game_data);
     }
     else
     {

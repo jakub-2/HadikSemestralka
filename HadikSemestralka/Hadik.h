@@ -34,6 +34,7 @@ typedef struct Snake
     int score;
     int direction;
     _Bool isDead;
+    _Bool isPaused;
     char idChar;
 } Snake;
 
