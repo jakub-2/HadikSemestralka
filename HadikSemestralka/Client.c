@@ -123,6 +123,12 @@ int compareStr(const void* a, const void* b) {
     return strcmp(*(const char**)a, *(const char**)b);
 }
 
+int compareFiles(const void* a, const void* b) {
+    const char* fileA = *(const char**)a;
+    const char* fileB = *(const char**)b;
+    return strcmp(fileA, fileB);
+}
+
 void create_session()
 {
     char* options[] = { "Standardny", "Casovy" };
@@ -273,6 +279,7 @@ void create_session()
 
         // quick sort options
         qsort(mapOptions, mapFileCount, sizeof(char*), compareStr);
+        qsort(mapFiles, mapFileCount, sizeof(char*), compareStr);
 
         // end ncurses and then start again for menu options
         endwin();
