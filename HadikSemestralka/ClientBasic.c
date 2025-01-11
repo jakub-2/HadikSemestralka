@@ -6,6 +6,7 @@
 
 //TODO create struct for sending and receiving data
 
+
 void* send_data_basic(void* datas)
 {
     inter_buffer* buffer = (inter_buffer*)datas;
@@ -76,6 +77,7 @@ void* receive_data_basic(void* datas)
         perror("shmat");
         exit(1);
     }
+    // reset data just to be sure
     memset(data, 0, shm_size);
     //Fruit** fruits = malloc(sizeof(Fruit) * 2);
     //Snake** snakes = malloc(sizeof(Snake) * 2);
@@ -86,6 +88,18 @@ void* receive_data_basic(void* datas)
     //    memcpy(buff->snakes[i], snakes[i], sizeof(Snake));
     //}
 
+    // pomocne premenne
+    Fruit** fruits = malloc(sizeof(Fruit) * 2);
+    Snake** snakes = malloc(sizeof(Snake) * 2);
+    _Bool drawn_border = 0;
+
+    initscr();
+    keypad(stdscr, TRUE);
+    noecho();
+    timeout(0);
+    curs_set(0);
+
+    clear();
     while (1) {
         if (strlen(data) > 0) {
             //printf("Client: %s\n", data);
@@ -99,7 +113,33 @@ void* receive_data_basic(void* datas)
             }
 
             //deserialize_data(data, fruits, snakes);
+            deserialize_game_data(data, buff->game_data);
             //update(fruits, snakes, buff->fruits, buff->snakes);
+
+            _Bool tests = buff->game_data->snakes[1]->isDead;
+            if (snakes[0] == NULL)
+            {
+                update(buff->game_data->fruits, buff->game_data->snakes, buff->game_data);
+            }
+            else
+            {
+                update(fruits, snakes, buff->game_data);
+            }
+            if (!drawn_border)
+            {
+                draw_map(buff->game_data);
+            }
+
+            free_snakes(snakes);
+            for (int i = 0; i < 2; ++i)
+            {
+                snakes[i] = copySnake(buff->game_data->snakes[i]);
+            }
+            for (int i = 0; i < 2; ++i)
+            {
+                free(fruits[i]);
+                fruits[i] = copy_fruits(buff->game_data->fruits[i]);
+            }
 
             //for (int i = 0; i < 2; ++i) {
             //    //buff->fruits[i] = malloc(sizeof(Fruit));
@@ -114,10 +154,16 @@ void* receive_data_basic(void* datas)
             // erase memory
             memset(data, 0, shm_size);
         }
+        usleep(20000);
     }
-    //free(fruits);
-    //free(snakes);
+    free_fruits(fruits);
+    free_snakes(snakes);
+    free(fruits);
+    free(snakes);
     shmdt(data);
+
+    clear();
+    endwin();
     return NULL;
 }
 
@@ -174,6 +220,9 @@ void start()
 {
     pthread_t test_t, send_t;
     temp_receive* test = malloc(sizeof(temp_receive));
+    test->game_data = malloc(sizeof(GameData));
+    test->game_data->snakes = malloc(sizeof(Snake) * 2);
+    test->game_data->fruits = malloc(sizeof(Fruit) * 2);
     test->inter_buffer = malloc(sizeof(inter_buffer));
     //test->inter_buffer->lock
 
@@ -182,4 +231,10 @@ void start()
     //TODO nahadzat thready
     pthread_join(test_t, NULL);
     pthread_join(send_t, NULL);
+
+    printf("Game ended with results:\n");
+    for (int i = 0; i < 2; ++i)
+    {
+        printf("Score Snake %c: %d\n", test->game_data->snakes[i]->idChar, test->game_data->snakes[i]->score);
+    }
 }
