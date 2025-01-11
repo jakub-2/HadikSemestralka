@@ -200,6 +200,11 @@ void draw_fruit(Fruit** fruits)
     refresh();
 }
 
+void draw_timer(GameData* game_data)
+{
+    mvprintw(game_data->height, 0, "Remaining time: %.0fs", game_data->timer);
+}
+
 void erase_snake(SnakeSegment* snake) {
     SnakeSegment* current = snake;
     while (current) {
@@ -301,7 +306,7 @@ void serialize_game_data(GameData* game_data, char* buffer, int buffer_size) {
     // Serialize GameData properties
     snprintf(buffer, buffer_size, "GameData:%d,%d,%d,%d,%d,%d,%d;\n",
         game_data->width, game_data->height, game_data->type, game_data->mode,
-        game_data->timer, game_data->count_obstacles, game_data->count_free_spaces);
+        (int)game_data->timer, game_data->count_obstacles, game_data->count_free_spaces);
 
     // Serialize Fruits
     strcat(buffer, "Fruits:");
@@ -314,7 +319,8 @@ void serialize_game_data(GameData* game_data, char* buffer, int buffer_size) {
     // Serialize Snakes
     strcat(buffer, "Snakes:");
     for (int i = 0; i < 2; ++i) {
-        snprintf(temp, 256, "%c:", game_data->snakes[i]->idChar);
+        snprintf(temp, 256, "%c,%d,%d,%d:", game_data->snakes[i]->idChar,
+            game_data->snakes[i]->score, game_data->snakes[i]->direction, game_data->snakes[i]->isDead);
         strcat(buffer, temp);
 
         SnakeSegment* segment = game_data->snakes[i]->head;
@@ -363,10 +369,12 @@ void deserialize_game_data(const char* data, GameData* game) {
     strncpy(game_data, game_data_start, game_data_end - game_data_start);
     game_data[game_data_end - game_data_start] = '\0';
 
+    int vymaz_timer;
     sscanf(game_data, "%d,%d,%d,%d,%d,%d,%d",
         &game->width, &game->height, &game->type, &game->mode,
-        &game->timer, &game->count_obstacles, &game->count_free_spaces);
+        &vymaz_timer, &game->count_obstacles, &game->count_free_spaces);
 
+    game->timer = vymaz_timer;
     // Parse Fruits
     const char* fruits_start = strstr(data, "Fruits:") + strlen("Fruits:");
     const char* fruits_end = strstr(fruits_start, "\n");
@@ -394,13 +402,20 @@ void deserialize_game_data(const char* data, GameData* game) {
     int snake_index = 0;
     while (snake_token) {
         char idChar;
-        sscanf(snake_token, "%c:", &idChar);
+        int score, direction, isDead;
 
-        Snake* snake = create_snake(idChar, 0, 0, 0); // Placeholder
-        SnakeSegment* head = NULL;
-        SnakeSegment* tail = NULL;
+        sscanf(snake_token, "%c,%d,%d,%d:", &idChar, &score, &direction, &isDead);
+
+        Snake* snake = create_snake(idChar, 0, 0, direction);
+        SnakeSegment* head = snake->head;
+        SnakeSegment* tail = snake->head;
         int x, y;
         char* segment_token = strstr(snake_token, ":") + 1;
+        if (segment_token && sscanf(segment_token, "%d,%d", &x, &y) == 2)
+        {
+            head->x = x;
+            head->y = y;
+        }
         while (segment_token && sscanf(segment_token, "%d,%d", &x, &y) == 2) {
             SnakeSegment* segment = create_segment(x, y);
 
@@ -417,7 +432,8 @@ void deserialize_game_data(const char* data, GameData* game) {
             if (segment_token) segment_token += 2;
         }
 
-        snake->head = head;
+        snake->score = score;
+        snake->isDead = isDead;
         game->snakes[snake_index++] = snake;
 
         snake_token = strtok(NULL, ";");
@@ -533,6 +549,56 @@ int calculate_buffer_size(int width, int height, int num_fruits, int num_snakes)
     return fruit_size + snake_size + metadata_size;
 }
 
+// Function to copy a single SnakeSegment node
+SnakeSegment* copySnakeSegment(const SnakeSegment* original) {
+    if (original == NULL) {
+        return NULL;
+    }
+
+    // Allocate memory for the new segment
+    SnakeSegment* copy = (SnakeSegment*)malloc(sizeof(SnakeSegment));
+    if (!copy) {
+        return NULL; // Handle allocation failure
+    }
+
+    // Copy the values
+    copy->x = original->x;
+    copy->y = original->y;
+    copy->next = copySnakeSegment(original->next); // Recursively copy the next segment
+
+    return copy;
+}
+
+// Function to copy the entire Snake structure
+Snake* copySnake(const Snake* original) {
+    if (original == NULL) {
+        return NULL;
+    }
+
+    // Allocate memory for the new snake
+    Snake* snake = (Snake*)malloc(sizeof(Snake));
+    if (!snake)
+    {
+        return NULL; // Handle allocation failure
+    }
+
+    // Copy the simple fields
+    snake->score = original->score;
+    snake->direction = original->direction;
+    snake->isDead = original->isDead;
+    snake->idChar = original->idChar;
+
+    // Deep copy the linked list of SnakeSegment
+    snake->head = copySnakeSegment(original->head);
+    return snake;
+}
+
+
+Fruit* copy_fruits(Fruit* fruits_old)
+{
+    Fruit* fruit = create_fruit(fruits_old->x, fruits_old->y);
+}
+
 void update(Fruit** fruits, Snake** snakes, GameData* game_data)
 {
     for (int i = 0; i < 2; ++i)
@@ -544,6 +610,10 @@ void update(Fruit** fruits, Snake** snakes, GameData* game_data)
     draw_snakes(game_data->snakes);
     draw_fruit(game_data->fruits);
     draw_score(game_data);
+    if (game_data->mode == 1)
+    {
+        draw_timer(game_data);
+    }
 }
 
 void moveSnake(GameData* game_data, _Bool _print)
@@ -627,6 +697,7 @@ void moveSnake(GameData* game_data, _Bool _print)
                     erase_snake(game_data->snakes[i]->head);
                 }
                 game_data->snakes[i]->isDead = 1;
+                game_data->count_free_spaces += game_data->snakes[i]->score + 3;
             }
             current = current->next;
         }
@@ -667,6 +738,7 @@ void moveSnake(GameData* game_data, _Bool _print)
                     erase_snake(game_data->snakes[i]->head);
                 }
                 game_data->snakes[i]->isDead = 1;
+                game_data->count_free_spaces += game_data->snakes[i]->score + 3;
 		    }
 	    }
     }
@@ -676,6 +748,7 @@ void moveSnake(GameData* game_data, _Bool _print)
         if (tempDeath[i])
         {
             game_data->snakes[i]->isDead = tempDeath[i];
+            game_data->count_free_spaces += game_data->snakes[i]->score + 3;
         }
     }
 
@@ -706,6 +779,7 @@ void moveSnake(GameData* game_data, _Bool _print)
         int fruitIndex = -1;
         if (collidesWithFruit(game_data->fruits, new_x[i], new_y[i], &fruitIndex)) {
             game_data->snakes[i]->score++;
+            game_data->count_free_spaces--;
             generate_food(game_data, fruitIndex);
             draw_fruit(game_data->fruits);
         }
@@ -735,6 +809,8 @@ void createGame(GameData* game_data, _Bool _print)
     game_data->snakes = malloc(sizeof(Snake) * 2);
     game_data->fruits = malloc(sizeof(Fruit) * 2);
 
+    game_data->count_free_spaces = (game_data->width - 2) * (game_data->height - 2);
+
     if (game_data->type == 1)
     {
         //load_map("/home/jakub/.vs/HadikSemestralka/HadikSemestralka/map.txt", game_data);
@@ -746,6 +822,7 @@ void createGame(GameData* game_data, _Bool _print)
         game_data->obstacles = NULL;
         game_data->count_obstacles = 0;
     }
+    game_data->count_free_spaces -= game_data->count_obstacles;
 
     //print = _print;
     game_data->snakes[0] = create_snake('1', game_data->width / 2, game_data->height / 2, KEY_RIGHT);
@@ -759,11 +836,13 @@ void createGame(GameData* game_data, _Bool _print)
         add_segment(game_data->snakes[i]->head);
         add_segment(game_data->snakes[i]->head);
     }
+    game_data->count_free_spaces -= 2 * 3;
 
     for (int i = 0; i < 2; ++i)
     {
         generate_food(game_data, i);
     }
+    game_data->count_free_spaces -= 2;
 
     if (_print)
     {
@@ -818,13 +897,17 @@ _Bool play(int* moves, GameData* game_data, _Bool _print)
     // moveSnake returns if snake is dead after move or not
     moveSnake(game_data, _print);
 
-    if (game_data->snakes[0]->isDead == 1 && game_data->snakes[1]->isDead == 1)
+    if ((game_data->snakes[0]->isDead == 1 && game_data->snakes[1]->isDead == 1) || (game_data->mode == 1 && game_data->timer <= 0))
     {
         return 1;
     }
     if (_print)
     {
         draw_score(game_data);
+        if (game_data->mode == 1)
+        {
+            draw_timer(game_data);
+        }
     }
     return 0;
 }

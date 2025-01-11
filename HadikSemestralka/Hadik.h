@@ -43,7 +43,7 @@ typedef struct GameData
     Fruit** fruits;
     Obstacle** obstacles;
     int width, height, type, mode;
-    int timer;
+    double timer;
     int count_obstacles;
     int count_free_spaces;
 } GameData;
@@ -78,6 +78,8 @@ void draw_snakes(Snake** snakes);
 
 void draw_fruit(Fruit** fruits);
 
+void draw_timer(GameData* game_data);
+
 void erase_snake(SnakeSegment* snake);
 
 void erase_fruit(Fruit* fruit);
@@ -96,6 +98,11 @@ void deserialize_game_data(const char* data, GameData* game);
 
 void deserialize_data(const char* data, Fruit** fruits, Snake** snakes);
 int calculate_buffer_size(int width, int height, int num_fruits, int num_snakes);
+
+SnakeSegment* copySnakeSegment(const SnakeSegment* original);
+Snake* copySnake(const Snake* original);
+Fruit* copy_fruits(Fruit* fruits_old);
+
 void update(Fruit** fruits, Snake** snakes, GameData* game_data);
 
 void moveSnake(GameData* game_data, _Bool _print);
