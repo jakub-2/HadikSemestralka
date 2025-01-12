@@ -1,0 +1,453 @@
+#include "Server.h"
+#include <unistd.h>
+//#include <sys/types.h>
+
+void* remotePlayerInput(void* datas)
+{
+	local_client_receive_buffer* buffer = (local_client_receive_buffer*)datas;
+
+	int shm_size = 5;
+	pid_t tid = gettid();
+	// locate shared memory segment
+	int shmid = shmget(69, shm_size, IPC_CREAT | 0666);
+	if (shmid == -1) {
+		perror("shmget_remote");
+		exit(1);
+	}
+
+	// attach shared memory segment to client's address space
+	char* data = (char*)shmat(shmid, NULL, 0);
+	if (data == (char*)(-1)) {
+		perror("shmat_remote");
+		exit(1);
+	}
+
+	_Bool is_end = 0;
+	while (!is_end)
+	{
+		//TODO precitaj shared memory
+		//ziskam remote input
+		int remoteDirection = 0;
+
+		if (strlen(data) > 0) {
+
+			remoteDirection = atoi(data);
+
+			// Respond to the client
+			memset(data, 0, shm_size);
+			//zapisem do bufferu pre run hry
+		//locknem pre zapis directionu
+			pthread_mutex_lock(buffer->lock);
+
+			//pokial nebol precitany smer tak cakam
+			while (buffer->direction[1] != -1)
+			{
+				pthread_cond_wait(buffer->read_remote, buffer->lock);
+			}
+
+			//if (buffer->direction[1] == -2)
+			//{
+			//	break;
+			//}
+
+			int test = remoteDirection;
+			//smer bol precitany tak zapisem ziskany input
+			buffer->direction[1] = remoteDirection;
+
+			//triggernem cond ze som odovzdal input
+			pthread_mutex_unlock(buffer->lock);
+			//asi bez signalizacie aby hra nestala
+			//preistotu signal pre dalsi thread ale asi netreba
+			//pthread_cond_signal(buffer->read_local);
+			//repeat?
+		}
+		pthread_mutex_lock(buffer->lock);
+
+		if (buffer->direction[1] == -2)
+		{
+			break;
+		}
+
+		pthread_mutex_unlock(buffer->lock);
+		usleep(20000);
+	}
+	return NULL;
+}
+
+//run game and send data
+void* runGame(void* datas)
+{
+	run_game_buffer* buffer = (run_game_buffer*)datas;
+	// locate shared memory segment
+	//int shmid = shmget(420, buffer->buffer_size, 0666);
+	char* data;
+	pid_t tid = gettid();
+	if (buffer->game_data->playerCount == 2)
+	{
+		int shmid = shmget(420, 2048, IPC_CREAT | 0666);
+		if (shmid == -1) {
+			perror("shmget_server");
+			exit(1);
+		}
+
+		// attach shared memory segment to client's address space
+		data = (char*)shmat(shmid, NULL, 0);
+		if (data == (char*)(-1)) {
+			perror("shmat_server");
+			exit(1);
+		}
+	}
+
+	pthread_mutex_lock(buffer->connection_buffer->lock);
+	if (buffer->game_data->playerCount == 2 && !buffer->connection_buffer->is_connected)
+	{
+		initscr();
+		noecho();
+		timeout(-1);
+		clear();
+		mvprintw(0, 0, "Cakam na pripojenie 2 hraca");
+		pthread_cond_wait(buffer->connection_buffer->conn_wait, buffer->connection_buffer->lock);
+		endwin();
+	}
+	pthread_mutex_unlock(buffer->connection_buffer->lock);
+
+
+	while (1)
+	{
+		//locke buffer s direction
+		pthread_mutex_lock(buffer->receive_buffer->lock);
+		int direction[buffer->game_data->playerCount];
+		for (int i = 0; i < buffer->game_data->playerCount; ++i)
+		{
+			direction[i] = buffer->receive_buffer->direction[i];
+			//if (direction[i] == -1)
+			//{
+			//	direction[i] = buffer->game_data->snakes[i]->direction;
+			//}
+			buffer->receive_buffer->direction[i] = -1;
+		}
+		pthread_mutex_unlock(buffer->receive_buffer->lock);
+		pthread_cond_signal(buffer->receive_buffer->read_remote);
+
+		
+		for (int i = 0; i < buffer->game_data->playerCount; ++i)
+		{
+			// flip na zastavenie
+			if (direction[i] == 27)
+			{
+				buffer->game_data->snakes[i]->isPaused = !(buffer->game_data->snakes[i]->isPaused);
+				direction[i] = buffer->game_data->snakes[i]->direction;
+			}
+		}
+
+		if (buffer->game_data->playerCount == 2)
+		{
+			if (!buffer->connection_buffer->is_connected)
+			{
+				buffer->game_data->snakes[1]->isPaused = 1;
+				direction[1] = buffer->game_data->snakes[1]->direction;
+			}
+			if (buffer->connection_buffer->reconnected)
+			{
+				buffer->game_data->snakes[1]->isPaused = 0;
+				pthread_mutex_lock(buffer->connection_buffer->lock);
+				buffer->connection_buffer->reconnected = 0;
+				pthread_mutex_unlock(buffer->connection_buffer->lock);
+			}
+			if (buffer->connection_buffer->is_end)
+			{
+				buffer->game_data->snakes[1]->isDead = 1;
+			}
+		}
+		
+		//if zahranie moveu ukonci hru
+		if (direction[0] == -420)
+		{
+			break;
+		}
+		if (play(direction, buffer->game_data, 0))
+		{
+			break;
+		}
+
+		if (buffer->game_data->mode == 1)
+		{
+			buffer->game_data->timer -= .2;
+		}
+
+		//send local data
+		pthread_mutex_lock(buffer->send_buffer->lock);
+
+		buffer->send_buffer->game_data = buffer->game_data;
+
+		pthread_mutex_unlock(buffer->send_buffer->lock);
+		pthread_cond_signal(buffer->send_buffer->is_New);
+		pthread_cond_signal(buffer->receive_buffer->read_local);
+
+		//send shared data
+		//serialize_game(snakes, fruits, buffer->buffer, buffer->buffer_size);
+		if (buffer->game_data->playerCount == 2)
+		{
+			serialize_game_data(buffer->game_data, buffer->buffer, buffer->buffer_size);
+
+			strncpy(data, buffer->buffer, buffer->buffer_size - 1);
+		}
+		//printf("Message sent: %s\n", data);
+
+		usleep(200000);
+	}
+
+	//send local data
+	pthread_mutex_lock(buffer->send_buffer->lock);
+
+	buffer->send_buffer->game_data = buffer->game_data;
+	buffer->send_buffer->game_data->timer = -1;
+	pthread_cond_signal(buffer->send_buffer->is_New);
+
+	pthread_mutex_unlock(buffer->send_buffer->lock);
+
+	//end local client send data thread
+	pthread_mutex_lock(buffer->receive_buffer->lock);
+
+	buffer->receive_buffer->is_end = 1;
+	buffer->receive_buffer->direction[0] = -2;
+	buffer->receive_buffer->direction[1] = -2;
+
+	pthread_mutex_unlock(buffer->receive_buffer->lock);
+	pthread_cond_signal(buffer->receive_buffer->read_remote);
+
+	if (buffer->game_data->playerCount == 2)
+	{
+		//end server connection
+		pthread_mutex_lock(buffer->connection_buffer->lock);
+
+		buffer->connection_buffer->is_end = 1;
+
+		pthread_mutex_unlock(buffer->connection_buffer->lock);
+
+		//send shared data and detach shared memory
+		strncpy(data, "End\0", buffer->buffer_size - 1);
+		shmdt(data);
+	}
+	return NULL;
+}
+
+void* check_connection(void* datas)
+{
+	connected_client* buffer = (connected_client*)datas;
+	pid_t tid = gettid();
+	int SHM_SIZE = 25;
+	// locate shared memory segment
+	int shmid = shmget(1000, SHM_SIZE, IPC_CREAT | 0666);
+	if (shmid == -1) {
+		perror("shmget_connection");
+		exit(1);
+	}
+
+	// attach shared memory segment to client's address space
+	char* data = (char*)shmat(shmid, NULL, 0);
+	if (data == (char*)(-1)) {
+		perror("shmat_connection");
+		exit(1);
+	}
+
+	memset(data, 0, SHM_SIZE);
+
+	int counter = 0;
+	pthread_mutex_lock(buffer->lock);
+	buffer->is_connected = 0;
+	pthread_mutex_unlock(buffer->lock);
+	while (1)
+	{
+		// wait for connection
+		if (strlen(data) > 0) {
+			break;
+		}
+		usleep(5000);
+	}
+	pthread_mutex_lock(buffer->lock);
+	buffer->is_connected = 1;
+	pthread_mutex_unlock(buffer->lock);
+	pthread_cond_signal(buffer->conn_wait);
+
+	while (!buffer->is_end)
+	{
+		if (strlen(data) > 0) {
+			// ked sa odpoji
+			if (strcmp(data, "End") == 0)
+			{
+				memset(data, 0, SHM_SIZE);
+				pthread_mutex_lock(buffer->lock);
+				buffer->is_end = 1;
+				pthread_mutex_unlock(buffer->lock);
+				break;
+			}
+
+			if (!buffer->reconnected && !buffer->is_connected)
+			{
+				pthread_mutex_lock(buffer->lock);
+				buffer->reconnected = 1;
+				buffer->is_connected = 1;
+				pthread_mutex_unlock(buffer->lock);
+			}
+
+			memset(data, 0, SHM_SIZE);
+			counter = 0;
+		}
+		else
+		{
+			if (counter > 10)
+			{
+				pthread_mutex_lock(buffer->lock);
+				buffer->is_connected = 0;
+				pthread_mutex_unlock(buffer->lock);
+				//break;
+			}
+			counter++;
+		}
+		usleep(10000);
+	}
+
+	shmdt(data);
+
+	return NULL;
+}
+
+void createServer(run_game_buffer* buffer)
+{
+	pthread_t run_t;
+	pthread_t connection_check_t;
+	pthread_t remote_input_t;
+
+	if (buffer->game_data->playerCount == 2)
+	{
+		pthread_create(&connection_check_t, NULL, check_connection, buffer->connection_buffer);
+		pthread_create(&remote_input_t, NULL, remotePlayerInput, buffer->receive_buffer);
+	}
+	pthread_create(&run_t, NULL, runGame, buffer);
+
+	pthread_join(run_t, NULL);
+	if (buffer->game_data->playerCount == 2)
+	{
+		pthread_join(remote_input_t, NULL);
+		pthread_join(connection_check_t, NULL);
+	}
+
+}
+
+
+void createGameS(int type, int mode, int width, int height, int timer, int playerCount, char* map_path, local_client_send_buffer* client_buffer, local_client_receive_buffer* client_receive_buffer)
+{
+	GameData* game_data = malloc(sizeof(GameData));
+	game_data->width = width;
+	game_data->height = height;
+	game_data->type = type;
+	game_data->mode = mode;
+	game_data->timer = timer;
+	game_data->playerCount = playerCount;
+	game_data->count_free_spaces = 0;
+	game_data->map_path = map_path;
+	//game_data->count_free_spaces = 20;
+
+	createGame(game_data, 0);
+	srand(time(0));
+
+	int buff_size = calculate_buffer_size(game_data->width, game_data->height, 2, 2);
+	char* stringBuffer = malloc(buff_size);
+
+	run_game_buffer* buffer = malloc(sizeof(run_game_buffer));
+	//malloc na buffer pre connection hraca
+	buffer->connection_buffer = malloc(sizeof(connected_client));
+	buffer->connection_buffer->lock = malloc(sizeof(pthread_mutex_t));
+	pthread_mutex_init(buffer->connection_buffer->lock, NULL);
+	buffer->connection_buffer->conn_wait = malloc(sizeof(pthread_cond_t));
+	pthread_cond_init(buffer->connection_buffer->conn_wait, NULL);
+	buffer->connection_buffer->is_end = 0;
+	buffer->connection_buffer->is_connected = 0;
+	buffer->connection_buffer->reconnected = 0;
+
+	buffer->receive_buffer = client_receive_buffer;
+	buffer->send_buffer = client_buffer;
+	buffer->buffer = stringBuffer;
+	buffer->buffer_size = buff_size;
+	buffer->game_data = game_data;
+
+	createServer(buffer);
+
+	pthread_mutex_destroy(buffer->connection_buffer->lock);
+	free(buffer->connection_buffer->lock);
+	free(buffer->connection_buffer);
+	free(buffer);
+	free(stringBuffer);
+}
+
+void test()
+{
+	GameData* game_data = malloc(sizeof(GameData));
+	game_data->snakes = malloc(sizeof(Snake) * 2);
+	game_data->fruits = malloc(sizeof(Fruit) * 2);
+	game_data->width = 10;
+	game_data->height = 10;
+	game_data->mode = 0;
+	game_data->type = 1;
+	game_data->timer = 0;
+	game_data->count_free_spaces = game_data->width * game_data->height;
+
+	char* buffer;
+
+	_Bool print = 1;
+	createGame(game_data, print);
+
+	int ch = KEY_RIGHT;
+	srand(time(0));
+
+	int buff_size = calculate_buffer_size(WIDTH, HEIGHT, 2, 2);
+	buffer = malloc(buff_size);
+
+	int temp1 = sizeof(buffer);
+
+	int direction[] = { KEY_RIGHT , KEY_LEFT };
+	while (1) {
+		// Get user input
+		ch = getch();
+		if (ch != ERR)
+		{
+			switch (ch) {
+				// Player 1 controls (WASD)
+			case 'w': direction[0] = KEY_UP; break;
+			case 's': direction[0] = KEY_DOWN; break;
+			case 'a': direction[0] = KEY_LEFT; break;
+			case 'd': direction[0] = KEY_RIGHT; break;
+
+				// Player 2 controls (Arrow keys)
+			case KEY_UP:    direction[1] = KEY_UP; break;
+			case KEY_DOWN:  direction[1] = KEY_DOWN; break;
+			case KEY_LEFT:  direction[1] = KEY_LEFT; break;
+			case KEY_RIGHT: direction[1] = KEY_RIGHT; break;
+			}
+		}
+
+		if (play(direction, game_data, print))
+		{
+			break;
+		}
+
+		if (print)
+		{
+			refresh();
+		}
+
+
+		serialize_game_data(game_data, buffer, buff_size);
+
+		usleep(200000);
+	}
+	endGame(game_data->snakes, print);
+	for (int i = 0; i < 2; ++i)
+	{
+		free(game_data->fruits[i]);
+	}
+	free(buffer);
+}
+
+
