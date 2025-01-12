@@ -132,12 +132,6 @@ int compareStr(const void* a, const void* b) {
     return strcmp(*(const char**)a, *(const char**)b);
 }
 
-int compareFiles(const void* a, const void* b) {
-    const char* fileA = *(const char**)a;
-    const char* fileB = *(const char**)b;
-    return strcmp(fileA, fileB);
-}
-
 void create_session()
 {
     int pocetHracov = 0;
@@ -337,8 +331,9 @@ void create_session()
             exit(103);
         }
 
-        // quick sort options
+        // quick sort options, files
         qsort(mapOptions, mapFileCount, sizeof(char*), compareStr);
+        qsort(mapFiles, mapFileCount, sizeof(char*), compareStr);
 
         // end ncurses and then start again for menu options
         //endwin();
@@ -348,10 +343,11 @@ void create_session()
 
         strcat(path, mapFiles[map]);
         clear();
-        mvprintw(0, 0, "Cesta k priecinku Maps: %s", path);
 
+        mvprintw(0, 0, "Cesta k priecinku Maps: %s", path);
         mvprintw(1, 0, "Press any key to continue");
-        refresh();
+
+    	refresh();
         getch();
         clear(); // clear before creating game
 
