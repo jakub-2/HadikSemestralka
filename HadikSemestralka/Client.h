@@ -8,7 +8,7 @@ typedef struct server_data
 {
 	local_client_receive_buffer* receive_buffer;
 	local_client_send_buffer* send_buffer;
-	int mode, type, timer, width, height;
+	int mode, type, timer, width, height, playerCount;
 }server_data;
 
 

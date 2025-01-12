@@ -27,7 +27,9 @@ typedef struct local_client_receive_buffer
 typedef struct connected_client
 {
 	pthread_mutex_t* lock;
+	pthread_cond_t* conn_wait;
 	_Bool is_connected;
+	_Bool reconnected;
 	_Bool is_end;
 }connected_client;
 
@@ -51,7 +53,7 @@ void* check_connection(void* data);
 void createServer(run_game_buffer* buffer);
 //void createServer(local_client_send_buffer* send_buffer, local_client_receive_buffer* receive_buffer);
 
-void createGameS(int type, int mode, int width, int height, int timer, local_client_send_buffer* client_buffer, local_client_receive_buffer* client_receive_buffer);
+void createGameS(int type, int mode, int width, int height, int timer, int playerCount, local_client_send_buffer* client_buffer, local_client_receive_buffer* client_receive_buffer);
 
 //void sendGameStatus();
 //void makeMove();

@@ -47,6 +47,7 @@ typedef struct GameData
     double timer;
     int count_obstacles;
     int count_free_spaces;
+    int playerCount;
 } GameData;
 
 Fruit* create_fruit(int x, int y);
@@ -75,9 +76,9 @@ void draw_score(GameData* game_data);
 
 void draw_snake(Snake* snake);
 
-void draw_snakes(Snake** snakes);
+void draw_snakes(GameData* game_data);
 
-void draw_fruit(Fruit** fruits);
+void draw_fruit(GameData* game_data);
 
 void draw_timer(GameData* game_data);
 
@@ -87,7 +88,7 @@ void erase_fruit(Fruit* fruit);
 
 void generate_food(GameData* game_data, int index);
 
-_Bool collidesWithFruit(Fruit** fruits, int x, int y, int* fruitIndex);
+_Bool collidesWithFruit(GameData* ga, int x, int y, int* fruitIndex);
 
 // TODO vymaz ak je to chujovina
 void serialize_fruits(Fruit** fruits, char* buffer, int buffer_size);

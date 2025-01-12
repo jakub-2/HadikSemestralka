@@ -6,6 +6,8 @@
 typedef struct inter_buffer
 {
 	_Bool is_end;
+	_Bool pause;
+	//_B
 	pthread_mutex_t lock;
 }inter_buffer;
 

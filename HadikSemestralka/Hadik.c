@@ -12,6 +12,10 @@ void free_fruits(Fruit** fruits)
 {
     for (int i = 0; i < 2; ++i)
     {
+	    if (fruits[i] == NULL)
+	    {
+		    continue;
+	    }
         free(fruits[i]);
     }
 }
@@ -167,7 +171,7 @@ void draw_borders() {
 
 void draw_score(GameData* game_data)
 {
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < game_data->playerCount; ++i)
     {
         mvprintw(game_data->height + 1 + i, 0, "Score Snake %c: %d", game_data->snakes[i]->idChar, game_data->snakes[i]->score);
     }
@@ -181,22 +185,22 @@ void draw_snake(Snake* snake) {
     }
 }
 
-void draw_snakes(Snake** snakes)
+void draw_snakes(GameData* game_data)
 {
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < game_data->playerCount; ++i)
     {
-	    if (snakes[i]->isDead == 0)
+	    if (game_data->snakes[i]->isDead == 0)
 	    {
-            draw_snake(snakes[i]);
+            draw_snake(game_data->snakes[i]);
 	    }
     }
 }
 
-void draw_fruit(Fruit** fruits)
+void draw_fruit(GameData* game_data)
 {
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < game_data->playerCount; ++i)
     {
-        mvprintw(fruits[i]->y, fruits[i]->x, "X");
+        mvprintw(game_data->fruits[i]->y, game_data->fruits[i]->x, "X");
     }
     refresh();
 }
@@ -232,12 +236,15 @@ void generate_food(GameData* game_data, int index) {
             game_data->fruits[index]->x = rand() % (game_data->width - 2) + 1;
             game_data->fruits[index]->y = rand() % (game_data->height - 2) + 1;
 
-            if (game_data->fruits[index]->x == game_data->fruits[(index + 1) % 2]->x && game_data->fruits[index]->y == game_data->fruits[(index + 1) % 2]->y)
+            if (game_data->playerCount == 2)
             {
-                valid = 0;
-                continue;
+                if (game_data->fruits[index]->x == game_data->fruits[(index + 1) % 2]->x && game_data->fruits[index]->y == game_data->fruits[(index + 1) % 2]->y)
+                {
+                    valid = 0;
+                    continue;
+                }
             }
-            for (int i = 0; i < 2; ++i)
+            for (int i = 0; i < game_data->playerCount; ++i)
             {
                 SnakeSegment* current = game_data->snakes[i]->head;
                 while (current) {
@@ -265,11 +272,11 @@ void generate_food(GameData* game_data, int index) {
 	}
 }
 
-_Bool collidesWithFruit(Fruit** fruits, int x, int y, int* fruitIndex)
+_Bool collidesWithFruit(GameData* game_data, int x, int y, int* fruitIndex)
 {
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < game_data->playerCount; ++i)
     {
-        if (x == fruits[i]->x && y == fruits[i]->y)
+        if (x == game_data->fruits[i]->x && y == game_data->fruits[i]->y)
         {
             *fruitIndex = i;
             return 1;
@@ -305,9 +312,9 @@ void serialize_game_data(GameData* game_data, char* buffer, int buffer_size) {
     char temp[256];
 
     // Serialize GameData properties
-    snprintf(buffer, buffer_size, "GameData:%d,%d,%d,%d,%d,%d,%d;\n",
+    snprintf(buffer, buffer_size, "GameData:%d,%d,%d,%d,%d,%d,%d,%d;\n",
         game_data->width, game_data->height, game_data->type, game_data->mode,
-        (int)game_data->timer, game_data->count_obstacles, game_data->count_free_spaces);
+        (int)game_data->timer, game_data->count_obstacles, game_data->count_free_spaces, game_data->playerCount);
 
     // Serialize Fruits
     strcat(buffer, "Fruits:");
@@ -371,9 +378,9 @@ void deserialize_game_data(const char* data, GameData* game) {
     game_data[game_data_end - game_data_start] = '\0';
 
     int vymaz_timer;
-    sscanf(game_data, "%d,%d,%d,%d,%d,%d,%d",
+    sscanf(game_data, "%d,%d,%d,%d,%d,%d,%d,%d",
         &game->width, &game->height, &game->type, &game->mode,
-        &vymaz_timer, &game->count_obstacles, &game->count_free_spaces);
+        &vymaz_timer, &game->count_obstacles, &game->count_free_spaces, &game->playerCount);
 
     game->timer = vymaz_timer;
     // Parse Fruits
@@ -603,18 +610,19 @@ Snake* copySnake(const Snake* original) {
 Fruit* copy_fruits(Fruit* fruits_old)
 {
     Fruit* fruit = create_fruit(fruits_old->x, fruits_old->y);
+    return fruit;
 }
 
 void update(Fruit** fruits, Snake** snakes, GameData* game_data)
 {
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < game_data->playerCount; ++i)
     {
         erase_snake(snakes[i]->head);
         erase_fruit(fruits[i]);
     }
 
-    draw_snakes(game_data->snakes);
-    draw_fruit(game_data->fruits);
+    draw_snakes(game_data);
+    draw_fruit(game_data);
     draw_score(game_data);
     if (game_data->mode == 1)
     {
@@ -625,10 +633,16 @@ void update(Fruit** fruits, Snake** snakes, GameData* game_data)
 void moveSnake(GameData* game_data, _Bool _print)
 {
     // Move snakes
-    int new_x[] = { game_data->snakes[0]->head->x, game_data->snakes[1]->head->x };
-    int new_y[] = { game_data->snakes[0]->head->y, game_data->snakes[1]->head->y };
+    int new_x[game_data->playerCount];
+    int new_y[game_data->playerCount];
 
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < game_data->playerCount; ++i)
+    {
+	    new_x[i] = game_data->snakes[i]->head->x;
+        new_y[i] = game_data->snakes[i]->head->y;
+    }
+
+    for (int i = 0; i < game_data->playerCount; ++i)
     {
         if (game_data->snakes[i]->direction == KEY_UP) {
             new_y[i]--;
@@ -646,7 +660,7 @@ void moveSnake(GameData* game_data, _Bool _print)
 
     // Check collisions
     // Check if colliding with border
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < game_data->playerCount; ++i)
     {
 	    if (game_data->snakes[i]->isPaused)
 	    {
@@ -682,17 +696,20 @@ void moveSnake(GameData* game_data, _Bool _print)
     }
 
     // check if snakes move to same space
-    if (game_data->snakes[0]->isDead == game_data->snakes[1]->isDead)
+    if (game_data->playerCount == 2)
     {
-        if (new_x[0] == new_x[1] && new_y[0] == new_y[1] && !game_data->snakes[0]->isPaused && !game_data->snakes[0]->isPaused)
+        if (game_data->snakes[0]->isDead == game_data->snakes[1]->isDead)
         {
-            game_data->snakes[0]->isDead = 1;
-            game_data->snakes[1]->isDead = 1;
+            if (new_x[0] == new_x[1] && new_y[0] == new_y[1] && !game_data->snakes[0]->isPaused && !game_data->snakes[0]->isPaused)
+            {
+                game_data->snakes[0]->isDead = 1;
+                game_data->snakes[1]->isDead = 1;
+            }
         }
     }
 
     _Bool tempDeath[] = { 0, 0 };
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < game_data->playerCount; ++i)
     {
         if (game_data->snakes[i]->isDead == 1 || game_data->snakes[i]->isPaused)
         {
@@ -712,28 +729,31 @@ void moveSnake(GameData* game_data, _Bool _print)
             current = current->next;
         }
 
-        // check if any part of snake2 collides with new cords
-        int index2 = (i + 1) % 2;
-        if (game_data->snakes[index2]->isDead == 1 || game_data->snakes[index2]->isPaused)
+        if (game_data->playerCount == 2)
         {
-            continue;
-        }
-        current = game_data->snakes[index2]->head;
-        while (current->next) {
-            if (current->x == new_x[i] && current->y == new_y[i]) {
-                if (_print)
-                {
-                    erase_snake(game_data->snakes[i]->head);
-                }
-                tempDeath[i] = 1;
-                //snakes[i]->isDead = 1;
+            // check if any part of snake2 collides with new cords
+            int index2 = (i + 1) % 2;
+            if (game_data->snakes[index2]->isDead == 1 || game_data->snakes[index2]->isPaused)
+            {
+                continue;
             }
-            current = current->next;
+            current = game_data->snakes[index2]->head;
+            while (current->next) {
+                if (current->x == new_x[i] && current->y == new_y[i]) {
+                    if (_print)
+                    {
+                        erase_snake(game_data->snakes[i]->head);
+                    }
+                    tempDeath[i] = 1;
+                    //snakes[i]->isDead = 1;
+                }
+                current = current->next;
+            }
         }
     }
 
     //check if snake collides with obstacles
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < game_data->playerCount; ++i)
     {
 	    if (game_data->snakes[i]->isDead || game_data->snakes[i]->isPaused)
 	    {
@@ -753,7 +773,7 @@ void moveSnake(GameData* game_data, _Bool _print)
 	    }
     }
 
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < game_data->playerCount; ++i)
     {
         if (tempDeath[i])
         {
@@ -764,7 +784,7 @@ void moveSnake(GameData* game_data, _Bool _print)
     }
 
     // Add new head
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < game_data->playerCount; ++i)
     {
         if (game_data->snakes[i]->isDead == 1 || game_data->snakes[i]->isPaused)
         {
@@ -780,7 +800,7 @@ void moveSnake(GameData* game_data, _Bool _print)
     }
 
     // Check food collision
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < game_data->playerCount; ++i)
     {
         //check if snake is dead
         if (game_data->snakes[i]->isDead == 1 || game_data->snakes[i]->isPaused)
@@ -788,11 +808,11 @@ void moveSnake(GameData* game_data, _Bool _print)
             continue;
         }
         int fruitIndex = -1;
-        if (collidesWithFruit(game_data->fruits, new_x[i], new_y[i], &fruitIndex)) {
+        if (collidesWithFruit(game_data, new_x[i], new_y[i], &fruitIndex)) {
             game_data->snakes[i]->score++;
             game_data->count_free_spaces--;
             generate_food(game_data, fruitIndex);
-            draw_fruit(game_data->fruits);
+            draw_fruit(game_data);
         }
         else {
             // Remove tail
@@ -817,13 +837,12 @@ void moveSnake(GameData* game_data, _Bool _print)
 
 void createGame(GameData* game_data, _Bool _print)
 {
-    game_data->snakes = malloc(sizeof(Snake) * 2);
-    game_data->fruits = malloc(sizeof(Fruit) * 2);
-
-    game_data->count_free_spaces = (game_data->width - 2) * (game_data->height - 2);
+    game_data->snakes = malloc(sizeof(Snake) * game_data->playerCount);
+    game_data->fruits = malloc(sizeof(Fruit) * game_data->playerCount);
 
     if (game_data->type == 1)
     {
+        //TODO pouzit script na ziskanie suborov a vybrat nahodnu mapu
         //load_map("/home/jakub/.vs/HadikSemestralka/HadikSemestralka/map.txt", game_data);
         //load_map("/home/jakub/.vs/HadikSemestralka/HadikSemestralka/map1.txt", game_data);
         load_map("/home/jakub/.vs/HadikSemestralka/HadikSemestralka/Maps/map_1.txt", game_data);
@@ -833,27 +852,34 @@ void createGame(GameData* game_data, _Bool _print)
         game_data->obstacles = NULL;
         game_data->count_obstacles = 0;
     }
+    game_data->count_free_spaces = (game_data->width - 2) * (game_data->height - 2);
     game_data->count_free_spaces -= game_data->count_obstacles;
 
     //print = _print;
-    game_data->snakes[0] = create_snake('1', game_data->width / 2, game_data->height / 2, KEY_RIGHT);
-    game_data->snakes[1] = create_snake('2', game_data->width / 2, game_data->height / 2 + 1, KEY_LEFT);
+    for (int i = 0; i < game_data->playerCount; ++i)
+    {
+        char symbol = (i + 1) + '0';
+	    game_data->snakes[i] = create_snake(symbol, game_data->width / 2, game_data->height / 2 + i, KEY_RIGHT - i);
+        game_data->fruits[i] = create_fruit(0, i);
+    }
+    //game_data->snakes[0] = create_snake('1', game_data->width / 2, game_data->height / 2, KEY_RIGHT);
+    //game_data->snakes[1] = create_snake('2', game_data->width / 2, game_data->height / 2 + 1, KEY_LEFT);
 
-    game_data->fruits[0] = create_fruit(0, 0);
-    game_data->fruits[1] = create_fruit(0, 1);
+    //game_data->fruits[0] = create_fruit(0, 0);
+    //game_data->fruits[1] = create_fruit(0, 1);
 
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < game_data->playerCount; ++i)
     {
         add_segment(game_data->snakes[i]->head);
         add_segment(game_data->snakes[i]->head);
     }
-    game_data->count_free_spaces -= 2 * 3;
+    game_data->count_free_spaces -= game_data->playerCount * 3;
 
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < game_data->playerCount; ++i)
     {
         generate_food(game_data, i);
     }
-    game_data->count_free_spaces -= 2;
+    game_data->count_free_spaces -= game_data->playerCount;
 
     if (_print)
     {
@@ -869,7 +895,7 @@ void createGame(GameData* game_data, _Bool _print)
         // Draw borders, food, and snake
         draw_map(game_data);
         //draw_obstacles();
-        draw_snakes(game_data->snakes);
+        draw_snakes(game_data);
 
     }
 }
@@ -892,10 +918,10 @@ _Bool play(int* moves, GameData* game_data, _Bool _print)
 {
     if (_print)
     {
-        draw_fruit(game_data->fruits);
+        draw_fruit(game_data);
     }
 
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < game_data->playerCount; ++i)
     {
         if ((moves[i] == KEY_UP && game_data->snakes[i]->direction != KEY_DOWN) ||
             (moves[i] == KEY_DOWN && game_data->snakes[i]->direction != KEY_UP) ||
@@ -908,7 +934,17 @@ _Bool play(int* moves, GameData* game_data, _Bool _print)
     // moveSnake returns if snake is dead after move or not
     moveSnake(game_data, _print);
 
-    if ((game_data->snakes[0]->isDead == 1 && game_data->snakes[1]->isDead == 1) || (game_data->mode == 1 && game_data->timer <= 0))
+    if (game_data->mode == 1 && game_data->timer <= 0)
+    {
+        return 1;
+    }
+    int countDead = 0;
+    for (int i = 0; i < game_data->playerCount; ++i)
+    {
+        countDead += game_data->snakes[i]->isDead;
+    }
+
+    if (countDead == game_data->playerCount)
     {
         return 1;
     }

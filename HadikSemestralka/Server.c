@@ -5,6 +5,7 @@
 void* remotePlayerInput(void* datas)
 {
 	local_client_receive_buffer* buffer = (local_client_receive_buffer*)datas;
+
 	int shm_size = 5;
 	// locate shared memory segment
 	int shmid = shmget(69, shm_size, IPC_CREAT | 0666);
@@ -78,29 +79,43 @@ void* runGame(void* datas)
 	run_game_buffer* buffer = (run_game_buffer*)datas;
 	// locate shared memory segment
 	//int shmid = shmget(420, buffer->buffer_size, 0666);
-	int shmid = shmget(420, 2048, IPC_CREAT | 0666);
-	if (shmid == -1) {
-		perror("shmget_server");
-		exit(1);
+	char* data;
+	if (buffer->game_data->playerCount == 2)
+	{
+		int shmid = shmget(420, 2048, IPC_CREAT | 0666);
+		if (shmid == -1) {
+			perror("shmget_server");
+			exit(1);
+		}
+
+		// attach shared memory segment to client's address space
+		data = (char*)shmat(shmid, NULL, 0);
+		if (data == (char*)(-1)) {
+			perror("shmat_server");
+			exit(1);
+		}
 	}
 
-	// attach shared memory segment to client's address space
-	char* data = (char*)shmat(shmid, NULL, 0);
-	if (data == (char*)(-1)) {
-		perror("shmat_server");
-		exit(1);
+	pthread_mutex_lock(buffer->connection_buffer->lock);
+	if (buffer->game_data->playerCount == 2 && !buffer->connection_buffer->is_connected)
+	{
+		initscr();
+		noecho();
+		timeout(-1);
+		clear();
+		mvprintw(0, 0, "Cakam na pripojenie 2 hraca");
+		pthread_cond_wait(buffer->connection_buffer->conn_wait, buffer->connection_buffer->lock);
+		endwin();
 	}
-
-
-	//TODO posli info o hre (sirka, dlzka, typ, mapa, mod, timer) a cakaj na connection hraca (buffer->connection...)
+	pthread_mutex_unlock(buffer->connection_buffer->lock);
 
 
 	while (1)
 	{
 		//locke buffer s direction
 		pthread_mutex_lock(buffer->receive_buffer->lock);
-		int direction[2];
-		for (int i = 0; i < 2; ++i)
+		int direction[buffer->game_data->playerCount];
+		for (int i = 0; i < buffer->game_data->playerCount; ++i)
 		{
 			direction[i] = buffer->receive_buffer->direction[i];
 			//if (direction[i] == -1)
@@ -112,8 +127,8 @@ void* runGame(void* datas)
 		pthread_mutex_unlock(buffer->receive_buffer->lock);
 		pthread_cond_signal(buffer->receive_buffer->read_remote);
 
-		//if zahranie moveu ukonci hru
-		for (int i = 0; i < 2; ++i)
+		
+		for (int i = 0; i < buffer->game_data->playerCount; ++i)
 		{
 			// flip na zastavenie
 			if (direction[i] == 27)
@@ -122,6 +137,28 @@ void* runGame(void* datas)
 				direction[i] = buffer->game_data->snakes[i]->direction;
 			}
 		}
+
+		if (buffer->game_data->playerCount == 2)
+		{
+			if (!buffer->connection_buffer->is_connected)
+			{
+				buffer->game_data->snakes[1]->isPaused = 1;
+				direction[1] = buffer->game_data->snakes[1]->direction;
+			}
+			if (buffer->connection_buffer->reconnected)
+			{
+				buffer->game_data->snakes[1]->isPaused = 0;
+				pthread_mutex_lock(buffer->connection_buffer->lock);
+				buffer->connection_buffer->reconnected = 0;
+				pthread_mutex_unlock(buffer->connection_buffer->lock);
+			}
+			if (buffer->connection_buffer->is_end)
+			{
+				buffer->game_data->snakes[1]->isDead = 1;
+			}
+		}
+		
+		//if zahranie moveu ukonci hru
 		if (play(direction, buffer->game_data, 0))
 		{
 			break;
@@ -143,9 +180,12 @@ void* runGame(void* datas)
 
 		//send shared data
 		//serialize_game(snakes, fruits, buffer->buffer, buffer->buffer_size);
-		serialize_game_data(buffer->game_data, buffer->buffer, buffer->buffer_size);
+		if (buffer->game_data->playerCount == 2)
+		{
+			serialize_game_data(buffer->game_data, buffer->buffer, buffer->buffer_size);
 
-		strncpy(data, buffer->buffer, buffer->buffer_size - 1);
+			strncpy(data, buffer->buffer, buffer->buffer_size - 1);
+		}
 		//printf("Message sent: %s\n", data);
 
 		usleep(200000);
@@ -170,17 +210,19 @@ void* runGame(void* datas)
 	pthread_mutex_unlock(buffer->receive_buffer->lock);
 	pthread_cond_signal(buffer->receive_buffer->read_remote);
 
+	if (buffer->game_data->playerCount == 2)
+	{
+		//end server connection
+		pthread_mutex_lock(buffer->connection_buffer->lock);
 
-	//end server connection
-	pthread_mutex_lock(buffer->connection_buffer->lock);
+		buffer->connection_buffer->is_end = 1;
 
-	buffer->connection_buffer->is_end = 1;
+		pthread_mutex_unlock(buffer->connection_buffer->lock);
 
-	pthread_mutex_unlock(buffer->connection_buffer->lock);
-
-	//send shared data and detach shared memory
-	strncpy(data, "End\0", buffer->buffer_size - 1);
-	shmdt(data);
+		//send shared data and detach shared memory
+		strncpy(data, "End\0", buffer->buffer_size - 1);
+		shmdt(data);
+	}
 	return NULL;
 }
 
@@ -202,27 +244,46 @@ void* check_connection(void* datas)
 		exit(1);
 	}
 
+	memset(data, 0, SHM_SIZE);
+
 	int counter = 0;
+	pthread_mutex_lock(buffer->lock);
+	buffer->is_connected = 0;
+	pthread_mutex_unlock(buffer->lock);
 	while (1)
 	{
-		pthread_mutex_lock(buffer->lock);
-		if (buffer->is_end)
-		{
-			pthread_mutex_unlock(buffer->lock);
+		// wait for connection
+		if (strlen(data) > 0) {
 			break;
 		}
-		pthread_mutex_unlock(buffer->lock);
+		usleep(5000);
+	}
+	pthread_mutex_lock(buffer->lock);
+	buffer->is_connected = 1;
+	pthread_mutex_unlock(buffer->lock);
+	pthread_cond_signal(buffer->conn_wait);
 
+	while (!buffer->is_end)
+	{
 		if (strlen(data) > 0) {
+			// ked sa odpoji
 			if (strcmp(data, "End") == 0)
 			{
 				memset(data, 0, SHM_SIZE);
+				pthread_mutex_lock(buffer->lock);
+				buffer->is_end = 1;
+				pthread_mutex_unlock(buffer->lock);
 				break;
 			}
 
-			//printf("Read timestamp: %s\n", data);
+			if (!buffer->reconnected && !buffer->is_connected)
+			{
+				pthread_mutex_lock(buffer->lock);
+				buffer->reconnected = 1;
+				buffer->is_connected = 1;
+				pthread_mutex_unlock(buffer->lock);
+			}
 
-			// Respond to the client
 			memset(data, 0, SHM_SIZE);
 			counter = 0;
 		}
@@ -230,8 +291,10 @@ void* check_connection(void* datas)
 		{
 			if (counter > 10)
 			{
-				//TODO pausni hru
-				break;
+				pthread_mutex_lock(buffer->lock);
+				buffer->is_connected = 0;
+				pthread_mutex_unlock(buffer->lock);
+				//break;
 			}
 			counter++;
 		}
@@ -249,18 +312,24 @@ void createServer(run_game_buffer* buffer)
 	pthread_t connection_check_t;
 	pthread_t remote_input_t;
 
+	if (buffer->game_data->playerCount == 2)
+	{
+		pthread_create(&connection_check_t, NULL, check_connection, buffer->connection_buffer);
+	}
 	pthread_create(&run_t, NULL, runGame, buffer);
-	pthread_create(&connection_check_t, NULL, check_connection, buffer->connection_buffer);
 	pthread_create(&remote_input_t, NULL, remotePlayerInput, buffer->receive_buffer);
 
 	pthread_join(run_t, NULL);
-	pthread_join(connection_check_t, NULL);
 	pthread_join(remote_input_t, NULL);
+	if (buffer->game_data->playerCount == 2)
+	{
+		pthread_join(connection_check_t, NULL);
+	}
 
 }
 
 
-void createGameS(int type, int mode, int width, int height, int timer, local_client_send_buffer* client_buffer, local_client_receive_buffer* client_receive_buffer)
+void createGameS(int type, int mode, int width, int height, int timer, int playerCount, local_client_send_buffer* client_buffer, local_client_receive_buffer* client_receive_buffer)
 {
 	GameData* game_data = malloc(sizeof(GameData));
 	game_data->width = width;
@@ -268,6 +337,8 @@ void createGameS(int type, int mode, int width, int height, int timer, local_cli
 	game_data->type = type;
 	game_data->mode = mode;
 	game_data->timer = timer;
+	game_data->playerCount = playerCount;
+	game_data->count_free_spaces = 0;
 	//game_data->count_free_spaces = 20;
 
 	createGame(game_data, 0);
@@ -281,7 +352,12 @@ void createGameS(int type, int mode, int width, int height, int timer, local_cli
 	buffer->connection_buffer = malloc(sizeof(connected_client));
 	buffer->connection_buffer->lock = malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(buffer->connection_buffer->lock, NULL);
+	buffer->connection_buffer->conn_wait = malloc(sizeof(pthread_cond_t));
+	pthread_cond_init(buffer->connection_buffer->conn_wait, NULL);
 	buffer->connection_buffer->is_end = 0;
+	buffer->connection_buffer->is_connected = 0;
+	buffer->connection_buffer->reconnected = 0;
+
 	buffer->receive_buffer = client_receive_buffer;
 	buffer->send_buffer = client_buffer;
 	buffer->buffer = stringBuffer;

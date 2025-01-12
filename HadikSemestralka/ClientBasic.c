@@ -4,6 +4,8 @@
 #include <pthread.h>
 #include <sys/shm.h>
 
+#include "Menu.h"
+
 //TODO create struct for sending and receiving data
 
 
@@ -32,14 +34,36 @@ void* send_data_basic(void* datas)
     keypad(stdscr, TRUE); // Enable special keys
     noecho();             // Disable character echo
     timeout(0);
-    while (1) {
-        pthread_mutex_lock(&buffer->lock);
-        if (buffer->is_end)
-        {
-            pthread_mutex_unlock(&buffer->lock);
-            break;
-        }
-        pthread_mutex_unlock(&buffer->lock);
+    while (!buffer->is_end) {
+	    if (buffer->pause)
+	    {
+            char* options[] = { "Resume Game", "Exit" };
+            int vyber = menu(options, 2);
+            if (vyber == 0)
+            {
+                pthread_mutex_lock(&buffer->lock);
+                buffer->pause = 0;
+                pthread_mutex_unlock(&buffer->lock);
+                char ch_str[5];
+                sprintf(ch_str, "%d\0", 27);
+                strncpy(data, ch_str, shm_size);
+                continue;
+            }
+            else
+            {
+                pthread_mutex_lock(&buffer->lock);
+                buffer->is_end = 1;
+                pthread_mutex_unlock(&buffer->lock);
+                continue;
+            }
+	    }
+
+        //if (buffer->is_end)
+        //{
+        //    pthread_mutex_unlock(&buffer->lock);
+        //    break;
+        //}
+        //pthread_mutex_unlock(&buffer->lock);
 
         // Get user input
         ch = getch();
@@ -50,6 +74,12 @@ void* send_data_basic(void* datas)
                 char ch_str[5];
                 sprintf(ch_str, "%d\0", ch);
             	strncpy(data, ch_str, shm_size);
+            }
+            if (ch == 27)
+            {
+                pthread_mutex_lock(&buffer->lock);
+                buffer->pause = !buffer->pause;
+                pthread_mutex_unlock(&buffer->lock);
             }
         }
         usleep(20000);
@@ -91,6 +121,10 @@ void* receive_data_basic(void* datas)
     // pomocne premenne
     Fruit** fruits = malloc(sizeof(Fruit) * 2);
     Snake** snakes = malloc(sizeof(Snake) * 2);
+    for (int i = 0; i < 2; ++i) {
+        snakes[i] = NULL;
+        fruits[i] = NULL;
+    }
     _Bool drawn_border = 0;
 
     initscr();
@@ -100,7 +134,14 @@ void* receive_data_basic(void* datas)
     curs_set(0);
 
     clear();
-    while (1) {
+    while (!buff->inter_buffer->is_end) {
+
+	    if (buff->inter_buffer->pause)
+	    {
+            usleep(20000);
+            continue;
+	    }
+
         if (strlen(data) > 0) {
             //printf("Client: %s\n", data);
             int temp = strcmp(data, "End");
@@ -111,6 +152,7 @@ void* receive_data_basic(void* datas)
                 pthread_mutex_unlock(&buff->inter_buffer->lock);
                 break;
             }
+            
             free_fruits(buff->game_data->fruits);
             free_snakes(buff->game_data->snakes);
             free_obstacles(buff->game_data);
@@ -183,21 +225,17 @@ void* send_connection_up(void* datas)
     struct tm* timeinfo;
 
 
-    char message[20] = "Som hore";
-    while (1) {
-        pthread_mutex_lock(&buffer->lock);
-        if (buffer->is_end)
-        {
-            pthread_mutex_unlock(&buffer->lock);
-            break;
-        }
-        pthread_mutex_unlock(&buffer->lock);
-
+    char message[20] = "Som hore\0";
+    char end_message[] = { "End" };
+    while (!buffer->is_end) {
         // Write the timestamp into the shared memory
         snprintf(data, shm_size, "%s", message);
 
-        usleep(2000);
+        usleep(5000);
     }
+
+    snprintf(data, shm_size, "%s", end_message);
+
     shmdt(data);
 
     return NULL;
@@ -211,26 +249,35 @@ _Bool try_connect_server()
 
 void start()
 {
-    pthread_t test_t, send_t;
+    pthread_t test_t, send_t, connection_t;
     temp_receive* test = malloc(sizeof(temp_receive));
     test->game_data = malloc(sizeof(GameData));
     test->game_data->snakes = malloc(sizeof(Snake) * 2);
     test->game_data->fruits = malloc(sizeof(Fruit) * 2);
+    for (int i = 0; i < 2; ++i) {
+        test->game_data->snakes[i] = NULL;
+        test->game_data->fruits[i] = NULL;
+    }
     test->game_data->obstacles = NULL;
     test->inter_buffer = malloc(sizeof(inter_buffer));
+    test->inter_buffer->pause = 0;
+    test->inter_buffer->is_end = 0;
     //test->inter_buffer->lock
 
     pthread_create(&test_t, NULL, receive_data_basic, test);
     pthread_create(&send_t, NULL, send_data_basic, test->inter_buffer);
+    pthread_create(&connection_t, NULL, send_connection_up, test->inter_buffer);
     //TODO nahadzat thready
     pthread_join(test_t, NULL);
     pthread_join(send_t, NULL);
+    pthread_join(connection_t, NULL);
 
     printf("Game ended with results:\n");
     for (int i = 0; i < 2; ++i)
     {
         printf("Score Snake %c: %d\n", test->game_data->snakes[i]->idChar, test->game_data->snakes[i]->score);
     }
+    sleep(3);
 
     free_snakes(test->game_data->snakes);
     free(test->game_data->snakes);

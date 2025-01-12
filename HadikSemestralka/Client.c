@@ -55,6 +55,10 @@ void* receive_data(void* data)
     // pomocne premenne
 	Fruit** fruits = malloc(sizeof(Fruit) * 2);
     Snake** snakes = malloc(sizeof(Snake) * 2);
+    for (int i = 0; i < 2; ++i) {
+        snakes[i] = NULL;
+        fruits[i] = NULL;
+    }
     _Bool drawn_border = 0;
     while (1) {
 
@@ -83,13 +87,18 @@ void* receive_data(void* data)
         }
 
         free_snakes(snakes);
-        for (int i = 0; i < 2; ++i)
+        for (int i = 0; i < buff->game_data->playerCount; ++i)
         {
         	snakes[i] = copySnake(buff->game_data->snakes[i]);
         }
-        for (int i = 0; i < 2; ++i)
+        //free_fruits(fruits);
+        for (int i = 0; i < buff->game_data->playerCount; ++i)
         {
-            free(fruits[i]);
+	        if (fruits[i] == NULL)
+	        {
+                free(fruits[i]);
+	        }
+            
             fruits[i] = copy_fruits(buff->game_data->fruits[i]);
         }
         //free_fruits(fruits);
@@ -115,7 +124,7 @@ void* run_server(void* data)
 {
     server_data* server_buffer = (server_data*)data;
 
-    createGameS(server_buffer->type, server_buffer->mode, server_buffer->width, server_buffer->height, server_buffer->timer, server_buffer->send_buffer, server_buffer->receive_buffer);
+    createGameS(server_buffer->type, server_buffer->mode, server_buffer->width, server_buffer->height, server_buffer->timer, server_buffer->playerCount, server_buffer->send_buffer, server_buffer->receive_buffer);
     return NULL;
 }
 
@@ -125,6 +134,46 @@ int compareStr(const void* a, const void* b) {
 
 void create_session()
 {
+    int pocetHracov = 0;
+    _Bool validHrac = 1;
+    initscr();
+    keypad(stdscr, TRUE);
+    noecho();
+    timeout(0);
+
+    clear();
+    int xHrac = 0;
+    while (validHrac)
+    {
+        mvprintw(0, xHrac, "Zadaj pocet hracov (1-2): "); // Print prompt
+
+        // Flush output to ensure the user sees it
+        refresh();
+
+        // Use scanw (ncurses version of scanf) instead of scanf
+        echo(); // Temporarily enable echo to show user input
+        timeout(-1); // Block input to allow proper user input
+        if (scanw("%d", &pocetHracov) != 1) {
+            // If input is invalid (e.g., not a number)
+            noecho();
+            mvprintw(1, 0, "Nespravny vstup. Skuste znova.");
+            refresh();
+            timeout(0);
+            continue;
+        }
+        noecho(); // Disable echo again
+        timeout(0); // Restore non-blocking input mode
+
+        if (pocetHracov < 1 || pocetHracov > 2) {
+            mvprintw(1, 0, "Nespravny pocet hracov, vyskusaj znova.");
+            refresh();
+            continue;
+        }
+        validHrac = 0; // Exit the loop when valid input is provided
+    }
+    endwin();
+
+
     char* options[] = { "Standardny", "Casovy" };
 
     int gameMode = menu(options, 2);
@@ -213,91 +262,93 @@ void create_session()
         clear();
         endwin();
     }
-    else
-    {
-        int max_files = 100;
-        int max_path_length = 256;
+    //else
+    //{
+    //    int max_files = 100;
+    //    int max_path_length = 256;
 
-        char path[max_path_length];
-        char* mapFiles[max_files];
-        char* mapOptions[max_files];
-        int mapFileCount = 0;
+    //    char path[max_path_length];
+    //    char* mapFiles[max_files];
+    //    char* mapOptions[max_files];
+    //    int mapFileCount = 0;
 
-        // input dir path from user
-        initscr();
-        echo();
-        mvprintw(0, 0, "Zadaj cestu k priecinku Maps: ");
+    //    // input dir path from user
+    //    initscr();
+    //    echo();
+    //    clear();
+    //    mvprintw(0, 0, "Zadaj cestu k priecinku Maps: ");
+    //    refresh();
 
-        if (scanw("%255s", path) == ERR || strlen(path) == 0) {
-            perror("Nepodarilo sa otvorit priecinok Maps\n");
-            endwin();
-            exit(103);
-        }
+    //    if (scanw("%255s", path) == ERR || strlen(path) == 0) {
+    //        perror("Nepodarilo sa otvorit priecinok Maps\n");
+    //        endwin();
+    //        exit(103);
+    //    }
 
-    	refresh();
+    //	refresh();
 
-        //DIR* dir = opendir("/home/velas4/.vs/HadikSemestralka/HadikSemestralka/Maps/");
-    	DIR* dir = opendir(path);
-        if (!dir) {
-            perror("Nepodarilo sa otvorit priecinok Maps\n");
-            endwin();
-            exit(103);
-        }
+    //    //DIR* dir = opendir("/home/velas4/.vs/HadikSemestralka/HadikSemestralka/Maps/");
+    //	DIR* dir = opendir(path);
+    //    if (!dir) {
+    //        perror("Nepodarilo sa otvorit priecinok Maps\n");
+    //        endwin();
+    //        exit(103);
+    //    }
 
-        // read from dir
-        struct dirent* entry;
-        while ((entry = readdir(dir)) != NULL) {
-            if (strncmp(entry->d_name, "map_", 4) == 0 && strstr(entry->d_name, ".txt")) {
-                if (mapFileCount >= max_files) {
-                    perror("Prilis vela map v priecinku Maps!\n");
-                    break;
-                }
+    //    // read from dir
+    //    struct dirent* entry;
+    //    while ((entry = readdir(dir)) != NULL) {
+    //        if (strncmp(entry->d_name, "map_", 4) == 0 && strstr(entry->d_name, ".txt")) {
+    //            if (mapFileCount >= max_files) {
+    //                perror("Prilis vela map v priecinku Maps!\n");
+    //                break;
+    //            }
 
-                mapFiles[mapFileCount] = malloc(max_path_length);
-                snprintf(mapFiles[mapFileCount], max_path_length, "%s", entry->d_name);
+    //            mapFiles[mapFileCount] = malloc(max_path_length);
+    //            snprintf(mapFiles[mapFileCount], max_path_length, "%s", entry->d_name);
 
-                mapOptions[mapFileCount] = malloc(max_path_length);
-                snprintf(mapOptions[mapFileCount], max_path_length, "Mapa: %s", entry->d_name);
+    //            mapOptions[mapFileCount] = malloc(max_path_length);
+    //            snprintf(mapOptions[mapFileCount], max_path_length, "Mapa: %s", entry->d_name);
 
-                mapFileCount++;
-            }
-        }
-        closedir(dir);
+    //            mapFileCount++;
+    //        }
+    //    }
+    //    closedir(dir);
 
-        // check file count in Maps dir
-        if (mapFileCount == 0) {
-            perror("Nenasli sa ziadne mapy v priecinku Maps\n");
-            endwin();
-            exit(103);
-        }
+    //    // check file count in Maps dir
+    //    if (mapFileCount == 0) {
+    //        perror("Nenasli sa ziadne mapy v priecinku Maps\n");
+    //        endwin();
+    //        exit(103);
+    //    }
 
-        // quick sort options
-        qsort(mapOptions, mapFileCount, sizeof(char*), compareStr);
+    //    // quick sort options
+    //    qsort(mapOptions, mapFileCount, sizeof(char*), compareStr);
 
-        // end ncurses and then start again for menu options
-        endwin();
+    //    // end ncurses and then start again for menu options
+    //    //endwin();
 
-        // menu options for map
-    	int map = menu(mapOptions, mapFileCount);
+    //    // menu options for map
+    //	int map = menu(mapOptions, mapFileCount);
 
-        strcat(path, mapFiles[map]);
-        clear();
-        mvprintw(0, 0, "Cesta k priecinku Maps: %s", path);
+    //    strcat(path, mapFiles[map]);
+    //    clear();
+    //    mvprintw(0, 0, "Cesta k priecinku Maps: %s", path);
 
-        mvprintw(1, 0, "Press any key to continue");
-        refresh();
-        getch();
-        clear(); // clear before creating game
+    //    mvprintw(1, 0, "Press any key to continue");
+    //    refresh();
+    //    getch();
+    //    clear(); // clear before creating game
 
-        endwin();
+    //    endwin();
 
-        for (int i = 0; i < mapFileCount; ++i)
-        {
-            free(mapFiles[i]);
-            free(mapOptions[i]);
-        }
-        //free(mapFiles);
-    }
+    //    for (int i = 0; i < mapFileCount; ++i)
+    //    {
+    //        free(mapFiles[i]);
+    //        free(mapOptions[i]);
+    //    }
+    //    //free(mapFiles);
+    //}
 
     local_client_receive_buffer* receive_buffer = malloc(sizeof(local_client_receive_buffer));
     receive_buffer->is_end = 0;
@@ -326,6 +377,7 @@ void create_session()
     server_data.timer = cas;
     server_data.width = sirka;
     server_data.height = vyska;
+    server_data.playerCount = pocetHracov;
 
     pthread_t client_send_t;
     pthread_t client_receive_t;
@@ -346,11 +398,13 @@ void create_session()
     
 
     printf("Game ended with results:\n");
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < server_data.send_buffer->game_data->playerCount; ++i)
     {
         printf("Score Snake %c: %d\n", server_data.send_buffer->game_data->snakes[i]->idChar, server_data.send_buffer->game_data->snakes[i]->score);
     }
-
+    //printf("Press any key to continue\n");
+    //getchar();
+    sleep(3);
 
     free_snakes(server_data.send_buffer->game_data->snakes);
     free(server_data.send_buffer->game_data->snakes);
