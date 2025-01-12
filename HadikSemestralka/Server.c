@@ -7,6 +7,7 @@ void* remotePlayerInput(void* datas)
 	local_client_receive_buffer* buffer = (local_client_receive_buffer*)datas;
 
 	int shm_size = 5;
+	pid_t tid = gettid();
 	// locate shared memory segment
 	int shmid = shmget(69, shm_size, IPC_CREAT | 0666);
 	if (shmid == -1) {
@@ -80,6 +81,7 @@ void* runGame(void* datas)
 	// locate shared memory segment
 	//int shmid = shmget(420, buffer->buffer_size, 0666);
 	char* data;
+	pid_t tid = gettid();
 	if (buffer->game_data->playerCount == 2)
 	{
 		int shmid = shmget(420, 2048, IPC_CREAT | 0666);
@@ -159,6 +161,10 @@ void* runGame(void* datas)
 		}
 		
 		//if zahranie moveu ukonci hru
+		if (direction[0] == -420)
+		{
+			break;
+		}
 		if (play(direction, buffer->game_data, 0))
 		{
 			break;
@@ -229,6 +235,7 @@ void* runGame(void* datas)
 void* check_connection(void* datas)
 {
 	connected_client* buffer = (connected_client*)datas;
+	pid_t tid = gettid();
 	int SHM_SIZE = 25;
 	// locate shared memory segment
 	int shmid = shmget(1000, SHM_SIZE, IPC_CREAT | 0666);
@@ -315,14 +322,14 @@ void createServer(run_game_buffer* buffer)
 	if (buffer->game_data->playerCount == 2)
 	{
 		pthread_create(&connection_check_t, NULL, check_connection, buffer->connection_buffer);
+		pthread_create(&remote_input_t, NULL, remotePlayerInput, buffer->receive_buffer);
 	}
 	pthread_create(&run_t, NULL, runGame, buffer);
-	pthread_create(&remote_input_t, NULL, remotePlayerInput, buffer->receive_buffer);
 
 	pthread_join(run_t, NULL);
-	pthread_join(remote_input_t, NULL);
 	if (buffer->game_data->playerCount == 2)
 	{
+		pthread_join(remote_input_t, NULL);
 		pthread_join(connection_check_t, NULL);
 	}
 
