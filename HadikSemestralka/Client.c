@@ -171,12 +171,6 @@ int compareStr(const void* a, const void* b) {
     return strcmp(*(const char**)a, *(const char**)b);
 }
 
-int compareFiles(const void* a, const void* b) {
-    const char* fileA = *(const char**)a;
-    const char* fileB = *(const char**)b;
-    return strcmp(fileA, fileB);
-}
-
 void create_session()
 {
     int pocetHracov = 0;
@@ -307,93 +301,104 @@ void create_session()
         clear();
         endwin();
     }
-    //else
-    //{
-    //    int max_files = 100;
-    //    int max_path_length = 256;
+    else
+    {
+        int max_files = 100;
+        int max_path_length = 256;
 
-    //    char path[max_path_length];
-    //    char* mapFiles[max_files];
-    //    char* mapOptions[max_files];
-    //    int mapFileCount = 0;
+        char path[max_path_length];
+        char* mapFiles[max_files];
+        char* mapOptions[max_files];
+        int mapFileCount = 0;
 
-    //    // input dir path from user
-    //    initscr();
-    //    echo();
-    //    clear();
-    //    mvprintw(0, 0, "Zadaj cestu k priecinku Maps: ");
-    //    refresh();
+        for (int i = 0; i < max_path_length; ++i)
+        {
+            path[i] = 0;
+        }
 
-    //    if (scanw("%255s", path) == ERR || strlen(path) == 0) {
-    //        perror("Nepodarilo sa otvorit priecinok Maps\n");
-    //        endwin();
-    //        exit(103);
-    //    }
+        // input dir path from user
+        initscr();
+        echo();
+        clear();
+        mvprintw(0, 0, "Zadaj cestu k priecinku Maps: ");
+        refresh();
 
-    //	refresh();
+        timeout(-1); // wait for user input
+        int input = scanw("%255s", path);
+        timeout(0); // lets goooo
 
-    //    //DIR* dir = opendir("/home/velas4/.vs/HadikSemestralka/HadikSemestralka/Maps/");
-    //	DIR* dir = opendir(path);
-    //    if (!dir) {
-    //        perror("Nepodarilo sa otvorit priecinok Maps\n");
-    //        endwin();
-    //        exit(103);
-    //    }
+        if (input == ERR || strlen(path) == 0) {
+            perror("Nepodarilo sa otvorit priecinok Maps\n");
+            endwin();
+            exit(103);
+        }
 
-    //    // read from dir
-    //    struct dirent* entry;
-    //    while ((entry = readdir(dir)) != NULL) {
-    //        if (strncmp(entry->d_name, "map_", 4) == 0 && strstr(entry->d_name, ".txt")) {
-    //            if (mapFileCount >= max_files) {
-    //                perror("Prilis vela map v priecinku Maps!\n");
-    //                break;
-    //            }
+    	refresh();
 
-    //            mapFiles[mapFileCount] = malloc(max_path_length);
-    //            snprintf(mapFiles[mapFileCount], max_path_length, "%s", entry->d_name);
+        //DIR* dir = opendir("/home/velas4/.vs/HadikSemestralka/HadikSemestralka/Maps/");
+    	DIR* dir = opendir(path);
+        if (!dir) {
+            perror("Nepodarilo sa otvorit priecinok Maps\n");
+            endwin();
+            exit(103);
+        }
 
-    //            mapOptions[mapFileCount] = malloc(max_path_length);
-    //            snprintf(mapOptions[mapFileCount], max_path_length, "Mapa: %s", entry->d_name);
+        // read from dir
+        struct dirent* entry;
+        while ((entry = readdir(dir)) != NULL) {
+            if (strncmp(entry->d_name, "map_", 4) == 0 && strstr(entry->d_name, ".txt")) {
+                if (mapFileCount >= max_files) {
+                    perror("Prilis vela map v priecinku Maps!\n");
+                    break;
+                }
 
-    //            mapFileCount++;
-    //        }
-    //    }
-    //    closedir(dir);
+                mapFiles[mapFileCount] = malloc(max_path_length);
+                snprintf(mapFiles[mapFileCount], max_path_length, "%s", entry->d_name);
 
-    //    // check file count in Maps dir
-    //    if (mapFileCount == 0) {
-    //        perror("Nenasli sa ziadne mapy v priecinku Maps\n");
-    //        endwin();
-    //        exit(103);
-    //    }
+                mapOptions[mapFileCount] = malloc(max_path_length);
+                snprintf(mapOptions[mapFileCount], max_path_length, "Mapa: %s", entry->d_name);
 
-    //    // quick sort options
-    //    qsort(mapOptions, mapFileCount, sizeof(char*), compareStr);
+                mapFileCount++;
+            }
+        }
+        closedir(dir);
 
-    //    // end ncurses and then start again for menu options
-    //    //endwin();
+        // check file count in Maps dir
+        if (mapFileCount == 0) {
+            perror("Nenasli sa ziadne mapy v priecinku Maps\n");
+            endwin();
+            exit(103);
+        }
 
-    //    // menu options for map
-    //	int map = menu(mapOptions, mapFileCount);
+        // quick sort options, files
+        qsort(mapOptions, mapFileCount, sizeof(char*), compareStr);
+        qsort(mapFiles, mapFileCount, sizeof(char*), compareStr);
 
-    //    strcat(path, mapFiles[map]);
-    //    clear();
-    //    mvprintw(0, 0, "Cesta k priecinku Maps: %s", path);
+        // end ncurses and then start again for menu options
+        //endwin();
 
-    //    mvprintw(1, 0, "Press any key to continue");
-    //    refresh();
-    //    getch();
-    //    clear(); // clear before creating game
+        // menu options for map
+    	int map = menu(mapOptions, mapFileCount);
 
-    //    endwin();
+        strcat(path, mapFiles[map]);
+        clear();
 
-    //    for (int i = 0; i < mapFileCount; ++i)
-    //    {
-    //        free(mapFiles[i]);
-    //        free(mapOptions[i]);
-    //    }
-    //    //free(mapFiles);
-    //}
+        mvprintw(0, 0, "Cesta k priecinku Maps: %s", path);
+        mvprintw(1, 0, "Press any key to continue");
+
+    	refresh();
+        getch();
+        clear(); // clear before creating game
+
+        endwin();
+
+        for (int i = 0; i < mapFileCount; ++i)
+        {
+            free(mapFiles[i]);
+            free(mapOptions[i]);
+        }
+        //free(mapFiles);
+    }
 
     local_client_receive_buffer* receive_buffer = malloc(sizeof(local_client_receive_buffer));
     receive_buffer->is_end = 0;
