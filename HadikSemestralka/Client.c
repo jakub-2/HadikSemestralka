@@ -1,9 +1,12 @@
 #include "Client.h"
 #include <dirent.h>
+#include <sys/types.h> // kvoli pid
 
 void* send_data(void* data)
 {
-	local_client_receive_buffer* buffer = (local_client_receive_buffer*)data;
+    inter_thread_buffer* thread_buffer = (inter_thread_buffer*)data;
+	local_client_receive_buffer* buffer = thread_buffer->receive_buffer;
+    pid_t tid = gettid();
     int ch;
     if (!initscr()) {
         fprintf(stderr, "Error initializing ncurses.\n");
@@ -16,19 +19,39 @@ void* send_data(void* data)
     
     // Fuck me I guess '_'
     while (!(buffer->is_end)) {
-        /*pthread_mutex_lock(buffer->lock);
-        running = !(buffer->is_end);
-        pthread_mutex_unlock(buffer->lock);*/
 
-        // TODO add wait for received data
-        //pthread_mutex_lock(buffer->lock);
-        //while (buffer->direction[0] == -1)
-        //{
-        //    pthread_cond_wait(buffer->read_local, buffer->lock);
-        //}
-        //pthread_mutex_unlock(buffer->lock);
+        if (thread_buffer->pause)
+        {
+            char* options[] = { "Resume Game", "Exit" };
+            int vyber = menu(options, 2);
+            if (vyber == 0)
+            {
+                pthread_mutex_lock(&thread_buffer->lock_inter_client);
+                thread_buffer->pause = 0;
+                pthread_mutex_unlock(&thread_buffer->lock_inter_client);
 
-        //sleep(10);
+                pthread_mutex_lock(buffer->lock);
+
+                buffer->direction[0] = 27;
+
+                pthread_mutex_unlock(buffer->lock);
+                continue;
+            }
+            else
+            {
+                pthread_mutex_lock(buffer->lock);
+
+                buffer->direction[0] = -420;
+
+                pthread_mutex_unlock(buffer->lock);
+
+                pthread_mutex_lock(&thread_buffer->lock_inter_client);
+                thread_buffer->pause = 0;
+                pthread_mutex_unlock(&thread_buffer->lock_inter_client);
+                continue;
+            }
+        }
+
         // Get user input
         ch = getch();
         if (ch != ERR)
@@ -39,6 +62,14 @@ void* send_data(void* data)
                 buffer->direction[0] = ch;
 
                 pthread_mutex_unlock(buffer->lock);
+
+                if (ch == 27)
+                {
+                    pthread_mutex_lock(&thread_buffer->lock_inter_client);
+                    thread_buffer->pause = 1;
+                    pthread_mutex_unlock(&thread_buffer->lock_inter_client);
+
+                }
             }
         }
         usleep(20000);
@@ -50,9 +81,11 @@ void* send_data(void* data)
 
 void* receive_data(void* data)
 {
-    local_client_send_buffer* buff = (local_client_send_buffer*)data;
+    inter_thread_buffer* thread_buffer = (inter_thread_buffer*)data;
+    local_client_send_buffer* buff = thread_buffer->send_buffer;
     curs_set(0);
     // pomocne premenne
+    pid_t tid = gettid();
 	Fruit** fruits = malloc(sizeof(Fruit) * 2);
     Snake** snakes = malloc(sizeof(Snake) * 2);
     for (int i = 0; i < 2; ++i) {
@@ -61,6 +94,11 @@ void* receive_data(void* data)
     }
     _Bool drawn_border = 0;
     while (1) {
+	    if (thread_buffer->pause)
+	    {
+            usleep(20000);
+            continue;
+	    }
 
         pthread_mutex_lock(buff->lock);
         while (buff->game_data == NULL)
@@ -122,6 +160,7 @@ void* receive_data(void* data)
 
 void* run_server(void* data)
 {
+    pid_t tid = gettid();
     server_data* server_buffer = (server_data*)data;
 
     createGameS(server_buffer->type, server_buffer->mode, server_buffer->width, server_buffer->height, server_buffer->timer, server_buffer->playerCount, server_buffer->send_buffer, server_buffer->receive_buffer);
@@ -385,15 +424,22 @@ void create_session()
     server_data.height = vyska;
     server_data.playerCount = pocetHracov;
 
+    inter_thread_buffer thread_buffer;
+    pthread_mutex_init(&thread_buffer.lock_inter_client, NULL);
+    thread_buffer.send_buffer = send_buffer;
+    thread_buffer.receive_buffer = receive_buffer;
+    thread_buffer.is_end = 0;
+    thread_buffer.pause = 0;
+
     pthread_t client_send_t;
     pthread_t client_receive_t;
     pthread_t server_t;
 
     pthread_create(&server_t, NULL, run_server, &server_data);
     usleep(1000);
-    pthread_create(&client_send_t, NULL, send_data, receive_buffer);
+    pthread_create(&client_send_t, NULL, send_data, &thread_buffer);
     usleep(1550);
-    pthread_create(&client_receive_t, NULL, receive_data, send_buffer);
+    pthread_create(&client_receive_t, NULL, receive_data, &thread_buffer);
     //TODO spravit thready clienta
 
     pthread_join(server_t, NULL);
