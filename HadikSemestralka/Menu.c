@@ -1,6 +1,7 @@
 #include "Menu.h"
 
 #include <stdio.h>
+#include <unistd.h>
 
 int menu(char** options, int numOfOptions)
  {
@@ -47,6 +48,7 @@ int menu(char** options, int numOfOptions)
         default:
         	break;
         }
+        usleep(2000);
     }
 	clear();
 	endwin();  // End curses mode
