@@ -336,7 +336,7 @@ void createServer(run_game_buffer* buffer)
 }
 
 
-void createGameS(int type, int mode, int width, int height, int timer, int playerCount, local_client_send_buffer* client_buffer, local_client_receive_buffer* client_receive_buffer)
+void createGameS(int type, int mode, int width, int height, int timer, int playerCount, char* map_path, local_client_send_buffer* client_buffer, local_client_receive_buffer* client_receive_buffer)
 {
 	GameData* game_data = malloc(sizeof(GameData));
 	game_data->width = width;
@@ -346,6 +346,7 @@ void createGameS(int type, int mode, int width, int height, int timer, int playe
 	game_data->timer = timer;
 	game_data->playerCount = playerCount;
 	game_data->count_free_spaces = 0;
+	game_data->map_path = map_path;
 	//game_data->count_free_spaces = 20;
 
 	createGame(game_data, 0);

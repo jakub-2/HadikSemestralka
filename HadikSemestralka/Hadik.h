@@ -48,6 +48,7 @@ typedef struct GameData
     int count_obstacles;
     int count_free_spaces;
     int playerCount;
+    char* map_path;
 } GameData;
 
 Fruit* create_fruit(int x, int y);
@@ -56,7 +57,7 @@ void free_fruits(Fruit** fruits);
 
 Obstacle* create_obstacle(int x, int y);
 
-void load_map(const char* filename, GameData* gameData);
+void load_map(GameData* gameData);
 
 void draw_map(GameData* gameData);
 

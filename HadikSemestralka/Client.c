@@ -16,6 +16,7 @@ void* send_data(void* data)
     noecho();             // Disable character echo
     //cbreak();
     timeout(0);
+    curs_set(0);
     
     // Fuck me I guess '_'
     while (!(buffer->is_end)) {
@@ -56,20 +57,24 @@ void* send_data(void* data)
         ch = getch();
         if (ch != ERR)
         {
-            if (ch == KEY_UP || ch == KEY_DOWN || ch == KEY_LEFT || ch == KEY_RIGHT || ch == 27) {
+            if (ch == KEY_UP || ch == KEY_DOWN || ch == KEY_LEFT || ch == KEY_RIGHT) {
+                pthread_mutex_lock(buffer->lock);
+
+                buffer->direction[0] = ch;
+
+                pthread_mutex_unlock(buffer->lock);
+            }
+            if (ch == 27)
+            {
+                pthread_mutex_lock(&thread_buffer->lock_inter_client);
+                thread_buffer->pause = 1;
+                pthread_mutex_unlock(&thread_buffer->lock_inter_client);
                 pthread_mutex_lock(buffer->lock);
 
                 buffer->direction[0] = ch;
 
                 pthread_mutex_unlock(buffer->lock);
 
-                if (ch == 27)
-                {
-                    pthread_mutex_lock(&thread_buffer->lock_inter_client);
-                    thread_buffer->pause = 1;
-                    pthread_mutex_unlock(&thread_buffer->lock_inter_client);
-
-                }
             }
         }
         usleep(20000);
@@ -83,7 +88,6 @@ void* receive_data(void* data)
 {
     inter_thread_buffer* thread_buffer = (inter_thread_buffer*)data;
     local_client_send_buffer* buff = thread_buffer->send_buffer;
-    curs_set(0);
     // pomocne premenne
     pid_t tid = gettid();
 	Fruit** fruits = malloc(sizeof(Fruit) * 2);
@@ -163,7 +167,7 @@ void* run_server(void* data)
     pid_t tid = gettid();
     server_data* server_buffer = (server_data*)data;
 
-    createGameS(server_buffer->type, server_buffer->mode, server_buffer->width, server_buffer->height, server_buffer->timer, server_buffer->playerCount, server_buffer->send_buffer, server_buffer->receive_buffer);
+    createGameS(server_buffer->type, server_buffer->mode, server_buffer->width, server_buffer->height, server_buffer->timer, server_buffer->playerCount, server_buffer->map_path, server_buffer->send_buffer, server_buffer->receive_buffer);
     return NULL;
 }
 
@@ -261,6 +265,12 @@ void create_session()
     char* optionz[] = { "Svet bez prekazok", "Svet s prekazkami" };
     int type = menu(optionz, 2);
     int vyska, sirka = 0;
+    int max_path_length = 256;
+    char path[max_path_length];
+    for (int i = 0; i < max_path_length; ++i)
+    {
+        path[i] = 0;
+    }
 
     if (type == 0) {
         _Bool valid = 1;
@@ -304,17 +314,9 @@ void create_session()
     else
     {
         int max_files = 100;
-        int max_path_length = 256;
-
-        char path[max_path_length];
         char* mapFiles[max_files];
         char* mapOptions[max_files];
         int mapFileCount = 0;
-
-        for (int i = 0; i < max_path_length; ++i)
-        {
-            path[i] = 0;
-        }
 
         // input dir path from user
         initscr();
@@ -335,7 +337,6 @@ void create_session()
 
     	refresh();
 
-        //DIR* dir = opendir("/home/velas4/.vs/HadikSemestralka/HadikSemestralka/Maps/");
     	DIR* dir = opendir(path);
         if (!dir) {
             perror("Nepodarilo sa otvorit priecinok Maps\n");
@@ -428,6 +429,14 @@ void create_session()
     server_data.width = sirka;
     server_data.height = vyska;
     server_data.playerCount = pocetHracov;
+    if (path[0] == 0)
+    {
+        server_data.map_path = NULL;
+    }
+    else
+    {
+        server_data.map_path = path;
+    }
 
     inter_thread_buffer thread_buffer;
     pthread_mutex_init(&thread_buffer.lock_inter_client, NULL);

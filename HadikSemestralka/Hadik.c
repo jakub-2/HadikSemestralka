@@ -28,8 +28,8 @@ Obstacle* create_obstacle(int x, int y)
     return obstacle;
 }
 
-void load_map(const char* filename, GameData* gameData) {
-    FILE* mapFile = fopen(filename, "r");
+void load_map(GameData* gameData) {
+    FILE* mapFile = fopen(gameData->map_path, "r");
     if (!mapFile) {
         perror("Error opening file.");
         exit(102);
@@ -73,6 +73,10 @@ void draw_map(GameData* gameData)
 
 void free_obstacles(GameData* gameData)
 {
+	if (gameData == NULL)
+	{
+        return;
+	}
     for (int i = 0; i < gameData->count_obstacles; ++i)
     {
         free(gameData->obstacles[i]);
@@ -839,13 +843,15 @@ void createGame(GameData* game_data, _Bool _print)
 {
     game_data->snakes = malloc(sizeof(Snake) * game_data->playerCount);
     game_data->fruits = malloc(sizeof(Fruit) * game_data->playerCount);
+    for (int i = 0; i < game_data->playerCount; ++i)
+    {
+        game_data->snakes[i] = NULL;
+        game_data->fruits[i] = NULL;
+    }
 
     if (game_data->type == 1)
     {
-        //TODO pouzit script na ziskanie suborov a vybrat nahodnu mapu
-        //load_map("/home/jakub/.vs/HadikSemestralka/HadikSemestralka/map.txt", game_data);
-        //load_map("/home/jakub/.vs/HadikSemestralka/HadikSemestralka/map1.txt", game_data);
-        load_map("/home/jakub/.vs/HadikSemestralka/HadikSemestralka/Maps/map_1.txt", game_data);
+        load_map(game_data);
     }
     else
     {

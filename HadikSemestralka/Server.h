@@ -53,7 +53,7 @@ void* check_connection(void* data);
 void createServer(run_game_buffer* buffer);
 //void createServer(local_client_send_buffer* send_buffer, local_client_receive_buffer* receive_buffer);
 
-void createGameS(int type, int mode, int width, int height, int timer, int playerCount, local_client_send_buffer* client_buffer, local_client_receive_buffer* client_receive_buffer);
+void createGameS(int type, int mode, int width, int height, int timer, int playerCount, char* map_path, local_client_send_buffer* client_buffer, local_client_receive_buffer* client_receive_buffer);
 
 //void sendGameStatus();
 //void makeMove();
