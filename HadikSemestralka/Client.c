@@ -299,13 +299,13 @@ void create_session()
             noecho();
             timeout(0);
 
-        	/*if (vyska < 15 || sirka < 15 || vyska > 40 || sirka > 40) {
+        	if (vyska < 15 || sirka < 15 || vyska > 40 || sirka > 40) {
                 clear();
                 mvprintw(0, 0, "Nespravne zadane rozmery, skuste znova.");
                 x = 1;
                 refresh();
                 continue;
-            }*/
+            }
             valid = 0; // Exit loop if input is valid
         }
         clear();
