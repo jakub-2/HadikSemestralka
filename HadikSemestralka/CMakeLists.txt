@@ -15,7 +15,7 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
 endif()
 
 # Add a separate executable for the server
-add_executable(ServerExecutable "HadikSemestralka.c" "Server.h" "Server.c" "Client.h" "Client.c" "Menu.h" "Menu.c")
+add_executable(ServerExecutable "HadikSemestralkaServer.c" "Server.h" "Server.c" "Client.h" "Client.c" "Menu.h" "Menu.c" "Hadik.h" "Hadik.c")
 
 target_link_libraries(ServerExecutable ${CURSES_LIBRARIES})
 
@@ -24,7 +24,7 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
 endif()
 
 # Add a separate executable for the server
-add_executable(ClientBasicExecutable "HadikSemestralkaBasic.c" "ClientBasic.h" "ClientBasic.c" "Menu.h" "Menu.c")
+add_executable(ClientBasicExecutable "HadikSemestralkaBasic.c" "ClientBasic.h" "ClientBasic.c" "Menu.h" "Menu.c" "Hadik.h" "Hadik.c")
 
 target_link_libraries(ClientBasicExecutable ${CURSES_LIBRARIES})
 

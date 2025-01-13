@@ -1,16 +1,15 @@
-#include "Menu.h"
-#include "ClientBasic.h"
+#include "Client.h"
 
 // main file for server
 int main() {
-    char* options[] = { "Connect to Game", "Exit" };
+    char* options[] = { "New Game", "Exit" };
     int vyber;
     while (1)
     {
         vyber = menu(options, 2);
         if (vyber == 0)
         {
-            start();
+            create_session();
         }
         else
         {
